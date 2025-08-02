@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "next/core-web-vitals"
+  ],
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "ignorePatterns": [
+    ".next",
+    "node_modules",
+    "*.config.js"
+  ]
+}
