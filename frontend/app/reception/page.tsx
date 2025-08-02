@@ -73,9 +73,9 @@ export default function ReceptionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <header className="bg-white shadow-soft">
+      <header className="bg-white shadow-soft flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -111,11 +111,11 @@ export default function ReceptionPage() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 p-4">
+      <main className="flex-1 p-4 overflow-hidden">
         <div className="max-w-4xl mx-auto h-full">
           {error ? (
             /* Error state */
-            <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+            <div className="flex items-center justify-center h-full">
               <div className="card-lg text-center max-w-md">
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg
@@ -157,7 +157,7 @@ export default function ReceptionPage() {
             </div>
           ) : (
             /* Welcome screen */
-            <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+            <div className="flex items-center justify-center h-full">
               <div className="text-center max-w-2xl">
                 {/* Welcome message */}
                 <div className="mb-12">
@@ -227,7 +227,7 @@ export default function ReceptionPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-4">
+      <footer className="bg-white border-t border-gray-200 py-4 flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between text-sm text-gray-500">
             <div>

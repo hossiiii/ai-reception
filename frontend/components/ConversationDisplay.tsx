@@ -127,10 +127,10 @@ export default function ConversationDisplay({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Visitor info bar (if available) */}
       {visitorInfo && visitorInfo.confirmed && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 mx-4 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-green-500 rounded-full"></div>
             <span className="text-sm font-medium text-green-800">
@@ -151,7 +151,6 @@ export default function ConversationDisplay({
       <div 
         ref={containerRef}
         className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2"
-        style={{ minHeight: '400px' }}
       >
         {/* Initial welcome message for empty conversation */}
         {messages.length === 0 && !isLoading && (

@@ -192,9 +192,9 @@ export default function ChatInterface({
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-120px)] bg-white rounded-2xl shadow-soft">
+    <div className="flex flex-col h-full bg-white rounded-2xl shadow-soft">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
             <svg
@@ -249,7 +249,7 @@ export default function ChatInterface({
 
       {/* Error display */}
       {state.error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex-shrink-0">
           <div className="flex items-center space-x-2">
             <svg
               className="w-5 h-5 text-red-600"
@@ -270,7 +270,7 @@ export default function ChatInterface({
       )}
 
       {/* Messages area */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 overflow-hidden">
         <ConversationDisplay
           messages={messages}
           isLoading={state.isLoading}
@@ -281,7 +281,7 @@ export default function ChatInterface({
 
       {/* Completion message */}
       {state.conversationCompleted && (
-        <div className="mx-6 mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="mx-6 mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <svg
@@ -312,7 +312,7 @@ export default function ChatInterface({
       )}
 
       {/* Input area */}
-      <div className="p-6 border-t border-gray-200">
+      <div className="p-6 border-t border-gray-200 flex-shrink-0">
         <form ref={formRef} onSubmit={handleSubmit} className="flex space-x-4">
           <input
             ref={inputRef}
