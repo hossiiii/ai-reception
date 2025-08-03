@@ -39,17 +39,15 @@ class ReceptionNodes:
 
         try:
             greeting_message = await self.text_service.generate_output(
-                "受付システムの初回挨拶（全情報収集）",
+                "音声受付システムの初回挨拶。簡潔に会社名、お名前、ご用件を伺う。入力例は不要。",
                 context
             )
         except Exception as e:
             print(f"AI greeting generation error: {e}")
-            # Fallback to static greeting
-            greeting_message = """いらっしゃいませ！受付システムへようこそ。
+            # Fallback to static greeting (optimized for voice)
+            greeting_message = """いらっしゃいませ。音声受付システムです。
 
-会社名・お名前・訪問目的を教えていただけますでしょうか？
-
-例: 株式会社テストの山田太郎です。本日10時から貴社の田中様とお約束をいただいております。"""
+会社名、お名前、ご用件をお聞かせください。"""
 
         ai_message = AIMessage(content=greeting_message)
 

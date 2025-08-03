@@ -65,7 +65,7 @@ class AudioService:
 
         except Exception as e:
             print(f"❌ Audio transcription error: {e}")
-            return "音声認識でエラーが発生しました。もう一度お試しください。"
+            return "申し訳ございません。音声が聞き取れませんでした。もう一度お話しください。"
 
     async def generate_output(self, text: str, context: str = "") -> str:
         """Step1 compatibility: Generate text response using same logic as TextService"""
@@ -148,28 +148,19 @@ class AudioService:
 
         # Simple mock responses based on context
         if "名前" in text and "会社" in text:
-            return """ありがとうございます。以下の内容で確認いたします：
+            return """確認いたします。
 
-お名前: [入力された名前]様
-会社名: [入力された会社名]
-
-この内容で間違いございませんか？
-「はい」または「いいえ」でお答えください。"""
+お名前とご所属を、もう一度お聞かせください。"""
 
         elif "はい" in text or "yes" in text.lower():
-            return """承知いたしました。ご来訪の目的をお聞かせください：
+            return """承知いたしました。
 
-1. 予約のお客様
-2. 営業のご訪問
-3. 配達業者の方
-
-該当する番号をお教えください。"""
+ご来訪の目的をお聞かせください。ご予約、営業、配達などご用件をお教えください。"""
 
         else:
-            return """こんにちは。AI受付システムです。
+            return """いらっしゃいませ。音声受付システムです。
 
-お名前と会社名を教えてください。
-例: 山田太郎、株式会社テストです。"""
+会社名、お名前、ご用件をお聞かせください。"""
 
 
 # Maintain Step1 compatibility by providing the same interface
