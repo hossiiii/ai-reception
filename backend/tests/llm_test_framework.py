@@ -50,7 +50,7 @@ class ImprovementSuggestion:
     priority: str  # "high", "medium", "low"
 
 @dataclass
-class TestResult:
+class LLMTestResult:
     """テスト結果（詳細な判断基準付き）"""
     test_id: str
     scenario_name: str
@@ -227,7 +227,7 @@ class DetailedValidator:
 class AnalysisEngine:
     """テスト結果の分析と改善提案エンジン"""
     
-    def analyze_test_results(self, test_results: List[TestResult]) -> Dict[str, Any]:
+    def analyze_test_results(self, test_results: List["LLMTestResult"]) -> Dict[str, Any]:
         """テスト結果の包括的分析"""
         analysis = {
             "overall_metrics": self._calculate_overall_metrics(test_results),
@@ -238,7 +238,7 @@ class AnalysisEngine:
         }
         return analysis
     
-    def _calculate_overall_metrics(self, test_results: List[TestResult]) -> Dict[str, Any]:
+    def _calculate_overall_metrics(self, test_results: List["LLMTestResult"]) -> Dict[str, Any]:
         """全体メトリクスの計算"""
         if not test_results:
             return {}
@@ -265,7 +265,7 @@ class AnalysisEngine:
             "failed_tests": len(test_results) - sum(1 for r in test_results if r.overall_success)
         }
     
-    def _analyze_by_category(self, test_results: List[TestResult]) -> Dict[str, Any]:
+    def _analyze_by_category(self, test_results: List["LLMTestResult"]) -> Dict[str, Any]:
         """カテゴリ別の分析"""
         categories = {}
         
@@ -311,7 +311,35 @@ class AnalysisEngine:
         
         return categories
     
-    def _identify_failure_patterns(self, test_results: List[TestResult]) -> List[Dict[str, Any]]:
+    def _prioritize_actions(self, test_results: List["LLMTestResult"]) -> List[Dict[str, str]]:
+        """優先すべきアクションを特定"""
+        actions = []
+        
+        # 失敗率の高いカテゴリを特定
+        categories = self._analyze_by_category(test_results)
+        for category, stats in categories.items():
+            success_rate = stats.get("success_rate", 0)
+            if success_rate < 0.5:
+                actions.append({
+                    "priority": "high",
+                    "action": f"{category}カテゴリの改善",
+                    "description": f"成功率{success_rate:.1%}の改善が必要",
+                    "target": category
+                })
+        
+        # 全体的な品質問題
+        avg_confidence = statistics.mean(r.confidence_score for r in test_results) if test_results else 0
+        if avg_confidence < 0.7:
+            actions.append({
+                "priority": "medium",
+                "action": "信頼度の向上",
+                "description": f"平均信頼度{avg_confidence:.2f}の改善",
+                "target": "system"
+            })
+        
+        return actions
+    
+    def _identify_failure_patterns(self, test_results: List["LLMTestResult"]) -> List[Dict[str, Any]]:
         """失敗パターンの特定"""
         patterns = {}
         
@@ -345,7 +373,7 @@ class AnalysisEngine:
             for pattern, data in sorted_patterns
         ]
     
-    def _generate_improvement_suggestions(self, test_results: List[TestResult]) -> List[ImprovementSuggestion]:
+    def _generate_improvement_suggestions(self, test_results: List["LLMTestResult"]) -> List[ImprovementSuggestion]:
         """改善提案の生成"""
         suggestions = []
         
@@ -368,7 +396,7 @@ class AnalysisEngine:
 class TestReportGenerator:
     """テスト結果レポート生成器"""
     
-    def generate_detailed_report(self, analysis: Dict[str, Any], test_results: List[TestResult]) -> str:
+    def generate_detailed_report(self, analysis: Dict[str, Any], test_results: List["LLMTestResult"]) -> str:
         """詳細レポートの生成"""
         report = []
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -446,7 +474,7 @@ async def run_example_test():
     
     # サンプルテスト結果
     sample_results = [
-        TestResult(
+        LLMTestResult(
             test_id="APT-001",
             scenario_name="標準的な予約来客",
             overall_success=True,

@@ -21,7 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from llm_test_framework import (
     DetailedValidator, AnalysisEngine, TestReportGenerator,
-    TestResult, TestEvidence, ExtractionResult, ImprovementSuggestion
+    LLMTestResult, TestEvidence, ExtractionResult, ImprovementSuggestion
 )
 
 class APITestClient:
@@ -116,7 +116,7 @@ class LLMTestRunner:
             print(f"Error loading scenarios: {e}")
             return {}
     
-    async def run_single_scenario(self, scenario_id: str, api_client: APITestClient) -> Optional[TestResult]:
+    async def run_single_scenario(self, scenario_id: str, api_client: APITestClient) -> Optional[LLMTestResult]:
         """単一シナリオの実行"""
         scenario = self._find_scenario(scenario_id)
         if not scenario:
@@ -232,12 +232,13 @@ class LLMTestRunner:
         """purposeからvisitor_typeを推測"""
         purpose = purpose.lower()
         
-        if any(keyword in purpose for keyword in ["会議", "ミーティング", "打ち合わせ", "面談", "予約"]):
-            return "appointment"
-        elif any(keyword in purpose for keyword in ["営業", "案内", "紹介", "提案", "商品", "サービス"]):
+        # 営業関連のキーワードを優先的にチェック
+        if any(keyword in purpose for keyword in ["営業", "案内", "紹介", "提案", "商品", "サービス", "新商品", "販売"]):
             return "sales"
         elif any(keyword in purpose for keyword in ["配達", "お届け", "荷物", "宅配"]):
             return "delivery"
+        elif any(keyword in purpose for keyword in ["会議", "ミーティング", "打ち合わせ", "面談", "予約"]):
+            return "appointment"
         else:
             # デフォルトは予約として判定
             return "appointment"
@@ -260,7 +261,18 @@ class LLMTestRunner:
             "確認できませんでした": ["確認いたしました", "確認した", "見当たりません", "見つかりません"],
             "お待ち": ["少々お待ち", "しばらくお待ち", "お呼び", "ご案内"],
             "担当者": ["担当", "責任者", "スタッフ"],
-            "受付": ["フロント", "窓口", "こちら"]
+            "受付": ["フロント", "窓口", "こちら"],
+            "営業": ["販売", "商談", "ビジネス"],
+            "ご用件": ["ご要件", "目的", "件"],
+            "荷物": ["お荷物", "配送物", "宅配便"],
+            "サイン": ["署名", "受け取り", "確認"],
+            "お名前": ["名前", "氏名"],
+            "会社名": ["会社", "企業名", "法人名"],
+            "ご用件": ["用件", "目的", "要件"],
+            "お聞かせください": ["教えて", "お教え", "聞かせて"],
+            "もう一度": ["再度", "もう一回"],
+            "申し訳": ["すみません", "ごめん", "失礼"],
+            "お手伝い": ["サポート", "支援", "手助け"]
         }
         
         for keyword in required_keywords:
@@ -326,7 +338,7 @@ class LLMTestRunner:
         self, scenario_id: str, scenario: Dict[str, Any], 
         conversation_results: List[Dict[str, Any]], final_history: Optional[Dict[str, Any]],
         overall_success: bool, all_issues: List[str], all_suggestions: List[ImprovementSuggestion]
-    ) -> TestResult:
+    ) -> LLMTestResult:
         """シナリオ結果の分析"""
         
         # 全ステップのスコアを集計
@@ -353,7 +365,7 @@ class LLMTestRunner:
             timestamp=datetime.now().isoformat()
         )
         
-        return TestResult(
+        return LLMTestResult(
             test_id=scenario_id,
             scenario_name=scenario.get("name", ""),
             overall_success=overall_success,
@@ -396,9 +408,9 @@ class LLMTestRunner:
                     return scenario
         return None
     
-    def _create_error_result(self, scenario_id: str, error_message: str) -> TestResult:
+    def _create_error_result(self, scenario_id: str, error_message: str) -> LLMTestResult:
         """エラー用のテスト結果を作成"""
-        return TestResult(
+        return LLMTestResult(
             test_id=scenario_id,
             scenario_name="Error",
             overall_success=False,
@@ -420,7 +432,7 @@ class LLMTestRunner:
             suggestions=[]
         )
     
-    async def run_test_suite(self, scenario_ids: Optional[List[str]] = None) -> List[TestResult]:
+    async def run_test_suite(self, scenario_ids: Optional[List[str]] = None) -> List["LLMTestResult"]:
         """テストスイートの実行"""
         if scenario_ids is None:
             # 全シナリオを実行
