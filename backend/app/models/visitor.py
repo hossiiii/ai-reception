@@ -1,5 +1,5 @@
-from typing import TypedDict, Optional, Literal
 from datetime import datetime
+from typing import Literal, TypedDict
 
 VisitorType = Literal["appointment", "sales", "delivery"]
 
@@ -8,7 +8,7 @@ class VisitorInfo(TypedDict):
     """Visitor information collected during conversation"""
     name: str
     company: str
-    visitor_type: Optional[VisitorType]
+    visitor_type: VisitorType | None
     confirmed: bool
     correction_count: int
 

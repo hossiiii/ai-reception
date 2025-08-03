@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ChatInterface from '@/components/ChatInterface';
+import VoiceInterface from '@/components/VoiceInterface';
 import ReceptionButton from '@/components/ReceptionButton';
 import { apiClient } from '@/lib/api';
 
@@ -90,12 +90,12 @@ export default function ReceptionPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M8 9a3 3 0 116 0 3 3 0 01-6 0z"
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
                   />
                 </svg>
               </div>
               <h1 className="text-xl font-semibold text-gray-900">
-                AI受付システム
+                AI音声受付システム
               </h1>
             </div>
             
@@ -147,9 +147,9 @@ export default function ReceptionPage() {
               </div>
             </div>
           ) : sessionId ? (
-            /* Chat interface */
+            /* Voice interface */
             <div className="h-full">
-              <ChatInterface
+              <VoiceInterface
                 sessionId={sessionId}
                 onConversationEnd={handleConversationEnd}
                 onError={handleError}
@@ -172,7 +172,7 @@ export default function ReceptionPage() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
                       />
                     </svg>
                   </div>
@@ -182,8 +182,8 @@ export default function ReceptionPage() {
                   </h1>
                   
                   <p className="text-2xl text-gray-600 mb-8 leading-relaxed">
-                    こちらは受付システムです。<br />
-                    下のボタンを押して受付を開始してください。
+                    こちらは音声対話受付システムです。<br />
+                    下のボタンを押して音声受付を開始してください。
                   </p>
                 </div>
 
@@ -204,19 +204,19 @@ export default function ReceptionPage() {
                       <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
                         1
                       </div>
-                      <span>「受付開始」ボタンを押す</span>
+                      <span>「音声受付開始」ボタンを押す</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
                         2
                       </div>
-                      <span>お名前と会社名を入力</span>
+                      <span>お名前と会社名を音声で話す</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
                         3
                       </div>
-                      <span>AIが適切にご案内</span>
+                      <span>AIが音声で適切にご案内</span>
                     </div>
                   </div>
                 </div>
@@ -231,10 +231,10 @@ export default function ReceptionPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between text-sm text-gray-500">
             <div>
-              AI Reception System v1.0.0
+              AI Reception System v2.0.0
             </div>
             <div className="flex items-center space-x-4">
-              <span>Step1: Text-based Reception</span>
+              <span>Step2: Voice-enabled Reception</span>
               {process.env.NODE_ENV === 'development' && (
                 <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
                   Development
