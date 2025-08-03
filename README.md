@@ -114,27 +114,62 @@ npm run dev
 
 ```
 ai-reception/
-├── venv/                      # Python仮想環境（.gitignoreに追加）
-├── 
-│   ├── backend/               # FastAPI バックエンド
-│   │   ├── app/
-│   │   │   ├── main.py       # FastAPI アプリケーション
-│   │   │   ├── config.py     # 環境設定
-│   │   │   ├── models/       # データモデル (Pydantic/TypedDict)
-│   │   │   ├── agents/       # LangGraph エージェント
-│   │   │   ├── services/     # 外部サービス統合
-│   │   │   └── api/          # REST API エンドポイント
-│   │   ├── tests/            # ユニットテスト
-│   │   ├── requirements.txt  # Python 依存関係
-│   │   └── .env.example      # 環境変数テンプレート
-│   ├── frontend/             # NextJS フロントエンド
-│   │   ├── app/              # App Router ディレクトリ
-│   │   ├── components/       # React コンポーネント
-│   │   ├── lib/              # ユーティリティ・API クライアント
-│   │   ├── package.json      # Node.js 依存関係
-│   │   └── tailwind.config.js # Tailwind CSS設定
-│   └── vercel.json           # Vercel デプロイ設定
-└── README.md                 # このファイル
+├── README.md                          # プロジェクトドキュメント
+├── context-engineering/               # 開発ドキュメント・設計資料
+│   ├── CLAUDE.md                     # Claude AIコンテキスト
+│   ├── LLM_TEST_PLAN.md              # LLMテスト計画
+│   ├── TEST_SCENARIOS.yaml           # テストシナリオ定義
+│   └── PRPs/                         # プロジェクト要件文書
+│       ├── ai-reception-system.md
+│       ├── step1-text-reception-system.md
+│       └── step2-voice-enhancement.md
+├── backend/                          # FastAPI バックエンド
+│   ├── app/
+│   │   ├── main.py                  # FastAPI アプリケーション
+│   │   ├── config.py                # 環境設定
+│   │   ├── models/                  # データモデル (Pydantic/TypedDict)
+│   │   │   ├── conversation.py      # 会話モデル
+│   │   │   └── visitor.py           # 訪問者モデル
+│   │   ├── agents/                  # LangGraph エージェント
+│   │   │   ├── nodes.py             # ノード定義
+│   │   │   └── reception_graph.py   # 受付フローグラフ
+│   │   ├── services/                # 外部サービス統合
+│   │   │   ├── calendar_service.py  # Google Calendar統合
+│   │   │   ├── slack_service.py     # Slack通知
+│   │   │   └── text_service.py      # LLM処理
+│   │   └── api/                     # REST API エンドポイント
+│   │       └── conversation.py      # 会話API
+│   ├── tests/                       # テストスイート
+│   │   ├── README_LLM_TESTING.md    # LLMテストガイド
+│   │   ├── test_llm_integration.py  # LLM統合テスト
+│   │   ├── llm_test_framework.py    # テストフレームワーク
+│   │   ├── llm_test_runner.py       # テスト実行エンジン
+│   │   ├── test_scenarios.yaml      # テストシナリオ定義
+│   │   ├── test_reception_graph.py  # グラフテスト
+│   │   ├── test_calendar_service.py # カレンダーテスト
+│   │   └── test_conversation_api.py # APIテスト
+│   ├── requirements.txt             # Python 依存関係
+│   ├── pyproject.toml               # Python プロジェクト設定
+│   └── .env.example                 # 環境変数テンプレート
+├── frontend/                        # NextJS フロントエンド
+│   ├── app/                         # App Router ディレクトリ
+│   │   ├── layout.tsx               # ルートレイアウト
+│   │   ├── page.tsx                 # ホームページ
+│   │   ├── globals.css              # グローバルスタイル
+│   │   └── reception/               # 受付ページ
+│   │       └── page.tsx
+│   ├── components/                  # React コンポーネント
+│   │   ├── ChatInterface.tsx        # チャットUI
+│   │   ├── ConversationDisplay.tsx  # 会話表示
+│   │   └── ReceptionButton.tsx      # 受付ボタン
+│   ├── lib/                         # ユーティリティ・API クライアント
+│   │   ├── api.ts                   # APIクライアント
+│   │   └── types.ts                 # TypeScript型定義
+│   ├── package.json                 # Node.js 依存関係
+│   ├── tailwind.config.js           # Tailwind CSS設定
+│   └── tsconfig.json                # TypeScript設定
+├── venv/                            # Python仮想環境（.gitignoreに追加）
+└── vercel.json                      # Vercel デプロイ設定
 ```
 
 ## 🔧 開発ワークフロー
@@ -329,6 +364,185 @@ cd frontend && npm run dev
 # ブラウザ Developer Tools で確認
 ```
 
+## 🔄 システムアーキテクチャ
+
+### 全体構成図
+
+```mermaid
+graph TB
+    subgraph "Frontend (Next.js)"
+        UI[Reception UI<br/>タブレット最適化]
+        API_Client[API Client<br/>Axios]
+    end
+    
+    subgraph "Backend (FastAPI)"
+        REST[REST API<br/>エンドポイント]
+        
+        subgraph "LangGraph Agent"
+            Start[開始]
+            Greeting[挨拶]
+            CollectInfo[情報収集]
+            Confirmation[確認]
+            CalendarCheck[予約確認]
+            Guidance[案内]
+            Error[エラー処理]
+            End[終了]
+        end
+        
+        subgraph "Services"
+            CalendarService[Calendar Service<br/>Google Calendar API]
+            SlackService[Slack Service<br/>Webhook通知]
+            LLMService[LLM Service<br/>OpenAI GPT-4]
+        end
+    end
+    
+    subgraph "External Services"
+        Google[Google Calendar]
+        Slack[Slack]
+        OpenAI[OpenAI API]
+    end
+    
+    UI <--> API_Client
+    API_Client <--> REST
+    REST <--> Start
+    
+    CalendarCheck --> CalendarService
+    Guidance --> SlackService
+    CollectInfo --> LLMService
+    Confirmation --> LLMService
+    
+    CalendarService <--> Google
+    SlackService --> Slack
+    LLMService <--> OpenAI
+```
+
+### ユーザーフロー図
+
+```mermaid
+flowchart TD
+    Start([来客者がタブレットに向かう])
+    
+    Start --> Greeting[AIが挨拶]
+    Greeting --> UserInput[来客者が用件を入力]
+    
+    UserInput --> InfoExtract{情報抽出}
+    
+    InfoExtract -->|名前・会社・用件が揃った| Confirm[情報確認]
+    InfoExtract -->|情報不足| AskMore[追加情報要求]
+    
+    AskMore --> UserInput2[追加情報入力]
+    UserInput2 --> InfoExtract
+    
+    Confirm --> UserConfirm{来客者が確認}
+    UserConfirm -->|正しい| TypeCheck{訪問タイプ判定}
+    UserConfirm -->|修正必要| Correction[情報修正]
+    Correction --> UserInput
+    
+    TypeCheck -->|予約来客| CalendarCheck[カレンダー確認]
+    TypeCheck -->|営業訪問| SalesGuidance[営業案内]
+    TypeCheck -->|配達業者| DeliveryGuidance[配達案内]
+    
+    CalendarCheck -->|予約あり| MeetingGuidance[会議室案内]
+    CalendarCheck -->|予約なし| NoAppointment[予約なし案内]
+    
+    MeetingGuidance --> SlackNotify[Slack通知]
+    SalesGuidance --> SlackNotify
+    DeliveryGuidance --> SlackNotify
+    NoAppointment --> SlackNotify
+    
+    SlackNotify --> End([対応完了])
+```
+
+## 🧪 LLMテストフレームワーク
+
+### テスト概要
+
+AI受付システムの品質を保証するための包括的なLLMテストフレームワークを実装しています。
+
+```mermaid
+graph LR
+    subgraph "テストカテゴリ"
+        APT[予約来客<br/>APT]
+        SALES[営業訪問<br/>SALES]
+        DEL[配達業者<br/>DEL]
+        ERR[エラー処理<br/>ERR]
+        COMP[複雑ケース<br/>COMP]
+    end
+    
+    subgraph "テストフレームワーク"
+        Runner[LLMTestRunner<br/>実行エンジン]
+        Validator[DetailedValidator<br/>検証エンジン]
+        Analyzer[AnalysisEngine<br/>分析エンジン]
+        Reporter[TestReportGenerator<br/>レポート生成]
+    end
+    
+    subgraph "評価指標"
+        Extract[情報抽出精度]
+        Quality[応答品質]
+        Flow[会話フロー]
+        Keyword[キーワード一致]
+    end
+    
+    APT --> Runner
+    SALES --> Runner
+    DEL --> Runner
+    ERR --> Runner
+    COMP --> Runner
+    
+    Runner --> Validator
+    Validator --> Extract
+    Validator --> Quality
+    Validator --> Flow
+    Validator --> Keyword
+    
+    Validator --> Analyzer
+    Analyzer --> Reporter
+```
+
+### テスト実行方法
+
+```bash
+# 仮想環境をアクティベート
+source venv/bin/activate  # Mac/Linux
+venv\Scripts\activate     # Windows
+
+# 特定カテゴリのテスト
+cd backend
+pytest tests/test_llm_integration.py::TestLLMIntegration::test_appointment_scenarios -v
+
+# 全体テスト実行
+pytest tests/test_llm_integration.py -v
+
+# 詳細レポート生成
+pytest tests/test_llm_integration.py --llm-report
+```
+
+### テストシナリオ
+
+| カテゴリ | シナリオID | 説明 | 成功率基準 |
+|---------|-----------|------|-----------|
+| **APT** | APT-001 | 標準的な予約来客 | 65%以上 |
+| | APT-002 | 時間指定なしの予約 | |
+| | APT-003 | 予約が見つからない | |
+| **SALES** | SALES-001 | 標準的な営業訪問 | 33%以上 |
+| | SALES-002 | 商品紹介での営業 | |
+| | SALES-003 | 曖昧な営業表現 | |
+| **DEL** | DEL-001 | 標準的な配達 | 50%以上 |
+| | DEL-002 | 個人名なしの配達 | |
+| **ERR** | ERR-001 | 情報不足エラー | 33%以上 |
+| | ERR-002 | 情報訂正フロー | |
+| | ERR-003 | 部分的な情報提供 | |
+| **COMP** | COMP-001 | 複数の用件 | 50%以上 |
+| | COMP-002 | 敬語なしの来客 | |
+| | COMP-003 | 長い説明の来客 | |
+
+### 評価メトリクス
+
+- **情報抽出精度**: 名前、会社名、訪問タイプの正確な抽出
+- **応答品質**: 丁寧さ、明確さ、適切性
+- **会話フロー**: 状態遷移の正確性
+- **キーワード一致**: 必須キーワードの含有（柔軟なマッチング対応）
+
 ## 📖 開発者向け情報
 
 ### アーキテクチャ決定
@@ -338,6 +552,41 @@ cd frontend && npm run dev
 - **NextJS 15**: モダンReactフレームワーク
 - **TypeScript**: 型安全性
 - **Tailwind CSS**: ユーティリティファーストCSS
+
+### LangGraphフロー詳細
+
+```mermaid
+stateDiagram-v2
+    [*] --> greeting: 開始
+    
+    greeting --> collect_all_info: 挨拶完了
+    
+    collect_all_info --> confirmation_response: 情報完備
+    collect_all_info --> collect_all_info: 情報不足（最大3回）
+    collect_all_info --> error: エラー上限到達
+    
+    confirmation_response --> confirmation_check: 確認応答
+    
+    confirmation_check --> visitor_type_check: 確認OK
+    confirmation_check --> collect_all_info: 修正必要
+    
+    visitor_type_check --> calendar_check: 予約来客
+    visitor_type_check --> sales_response: 営業訪問
+    visitor_type_check --> delivery_response: 配達業者
+    
+    calendar_check --> appointment_found_response: 予約あり
+    calendar_check --> appointment_not_found_response: 予約なし
+    
+    appointment_found_response --> send_slack_notification
+    appointment_not_found_response --> send_slack_notification
+    sales_response --> send_slack_notification
+    delivery_response --> send_slack_notification
+    
+    send_slack_notification --> log_completion
+    log_completion --> [*]: 完了
+    
+    error --> [*]: エラー終了
+```
 
 ### 拡張ガイド
 
