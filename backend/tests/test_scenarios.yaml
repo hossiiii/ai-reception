@@ -1,0 +1,322 @@
+# AI受付システム テストシナリオ定義
+version: "1.0"
+created: "2025-01-01"
+
+# テストシナリオ
+test_scenarios:
+  # 1. 予約来客のテストケース
+  appointment_visitor:
+    - id: "APT-001"
+      name: "標準的な予約来客（時間・担当者明記）"
+      priority: "high"
+      conversation:
+        - step: 1
+          user_input: "田中太郎です。ABC商事から14時の山田部長との会議で来ました。"
+          expected:
+            visitor_type: "appointment"
+            extracted_info:
+              name: "田中太郎"
+              company: "ABC商事"
+              purpose: "会議"
+            next_state: "confirmation"
+            must_include_keywords: ["確認", "田中", "ABC商事"]
+            quality_checks:
+              check_politeness: true
+              max_length: 150
+        
+        - step: 2
+          user_input: "はい、その通りです。"
+          expected:
+            next_state: "calendar_check"
+            must_include_keywords: ["確認", "お待ち"]
+            quality_checks:
+              check_politeness: true
+
+    - id: "APT-002"
+      name: "時間指定なしの予約"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "鈴木です。XYZ会社から山田さんとの打ち合わせで来ました。"
+          expected:
+            visitor_type: "appointment"
+            extracted_info:
+              name: "鈴木"
+              company: "XYZ会社"
+              purpose: "打ち合わせ"
+            next_state: "confirmation"
+
+    - id: "APT-003"
+      name: "予約が見つからないケース"
+      priority: "high"
+      conversation:
+        - step: 1
+          user_input: "佐藤です。DEF社から15時の会議で来ました。"
+          expected:
+            visitor_type: "appointment"
+            extracted_info:
+              name: "佐藤"
+              company: "DEF社"
+        - step: 2
+          user_input: "はい、間違いありません。"
+          system_event: "calendar_not_found"
+          expected:
+            next_state: "guidance"
+            guidance_type: "appointment_not_found"
+            must_include_keywords: ["確認できませんでした", "担当者", "受付"]
+
+  # 2. 営業訪問のテストケース
+  sales_visitor:
+    - id: "SALES-001"
+      name: "標準的な営業訪問"
+      priority: "high"
+      conversation:
+        - step: 1
+          user_input: "営業で伺いました。GHI商事の高橋と申します。"
+          expected:
+            visitor_type: "sales"
+            extracted_info:
+              name: "高橋"
+              company: "GHI商事"
+              purpose: "営業"
+            next_state: "confirmation"
+            
+        - step: 2
+          user_input: "はい、その通りです。"
+          expected:
+            next_state: "guidance"
+            guidance_type: "sales_visitor"
+            must_include_keywords: ["営業", "受付", "担当者"]
+
+    - id: "SALES-002"
+      name: "商品紹介での営業訪問"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "新商品のご案内で来ました。JKL社の渡辺です。"
+          expected:
+            visitor_type: "sales"
+            extracted_info:
+              name: "渡辺"
+              company: "JKL社"
+              purpose: "商品案内"
+
+    - id: "SALES-003"
+      name: "曖昧な営業表現"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "ちょっとお話があって...MNO会社の林です。"
+          expected:
+            visitor_type: "sales"  # 推測される
+            extracted_info:
+              name: "林"
+              company: "MNO会社"
+            next_state: "confirmation"
+            must_include_keywords: ["確認", "ご用件"]
+
+  # 3. 配達業者のテストケース
+  delivery_visitor:
+    - id: "DEL-001"
+      name: "標準的な配達"
+      priority: "high"
+      conversation:
+        - step: 1
+          user_input: "ヤマト運輸です。お荷物をお届けに来ました。"
+          expected:
+            visitor_type: "delivery"
+            extracted_info:
+              company: "ヤマト運輸"
+              purpose: "荷物配達"
+            next_state: "confirmation"
+            
+        - step: 2
+          user_input: "はい"
+          expected:
+            next_state: "guidance"
+            guidance_type: "delivery"
+            must_include_keywords: ["荷物", "受付", "サイン"]
+
+    - id: "DEL-002"
+      name: "個人名なしの配達"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "佐川急便の配達です。"
+          expected:
+            visitor_type: "delivery"
+            extracted_info:
+              company: "佐川急便"
+              name: null  # 個人名なしでも可
+
+  # 4. エラーケースのテストケース
+  error_cases:
+    - id: "ERR-001"
+      name: "情報不足による段階的エラー"
+      priority: "high"
+      conversation:
+        - step: 1
+          user_input: "こんにちは"
+          expected:
+            next_state: "collect_all_info"
+            error_count: 1
+            must_include_keywords: ["お名前", "会社名", "ご用件"]
+            
+        - step: 2
+          user_input: "えっと..."
+          expected:
+            error_count: 2
+            must_include_keywords: ["もう一度", "お聞かせください"]
+            
+        - step: 3
+          user_input: ""
+          expected:
+            error_count: 3
+            next_state: "error"
+            must_include_keywords: ["申し訳", "お手伝い"]
+
+    - id: "ERR-002"
+      name: "情報訂正フロー"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "田中です。ABC商事から来ました。"
+          expected:
+            next_state: "confirmation"
+            
+        - step: 2
+          user_input: "いいえ、名前が違います。"
+          expected:
+            correction_count: 1
+            next_state: "collect_all_info"
+            must_include_keywords: ["申し訳ございません", "もう一度"]
+
+    - id: "ERR-003"
+      name: "部分的な情報提供"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "田中です。"
+          expected:
+            extracted_info:
+              name: "田中"
+              company: null
+            must_include_keywords: ["会社名", "ご用件"]
+
+  # 5. 複雑なケースのテストケース
+  complex_cases:
+    - id: "COMP-001"
+      name: "複数の用件"
+      priority: "medium"
+      conversation:
+        - step: 1
+          user_input: "山田です。配達と14時の会議の両方で来ました。"
+          expected:
+            visitor_type: "appointment"  # 会議を優先
+            extracted_info:
+              name: "山田"
+            must_include_keywords: ["確認", "メイン", "主要"]
+            
+    - id: "COMP-002"
+      name: "敬語なしの来客"
+      priority: "low"
+      conversation:
+        - step: 1
+          user_input: "田中だ。会議で来た。"
+          expected:
+            visitor_type: "appointment"
+            extracted_info:
+              name: "田中"
+            next_state: "confirmation"
+            # 丁寧語で返すこと
+            quality_checks:
+              check_politeness: true
+
+    - id: "COMP-003"
+      name: "長い説明の来客"
+      priority: "low"
+      conversation:
+        - step: 1
+          user_input: "こんにちは、私は鈴木と申します。ABC商事という会社から参りまして、本日14時から山田部長と新商品についての打ち合わせをすることになっており、少し早めに到着してしまったのですが、会議室の場所等を教えていただきたく..."
+          expected:
+            visitor_type: "appointment"
+            extracted_info:
+              name: "鈴木"
+              company: "ABC商事"
+            next_state: "confirmation"
+            # 簡潔に要約して確認すること
+            quality_checks:
+              max_length: 100
+
+# バリデーション設定
+validation_config:
+  # 情報抽出の検証ルール
+  extraction_validation:
+    name:
+      required: true
+      pattern: "^[ぁ-んァ-ヶー一-龠a-zA-Z\\s]{1,50}$"
+      
+    company:
+      required: false  # 配達業者など、個人名のみの場合もある
+      pattern: "^.{1,100}$"
+      
+    visitor_type:
+      required: true
+      allowed_values: ["appointment", "sales", "delivery"]
+      
+  # 応答品質の検証ルール
+  quality_validation:
+    politeness:
+      required_phrases: ["です", "ます", "ございます"]
+      weight: 0.3
+      
+    clarity:
+      max_length: 150
+      min_length: 20
+      weight: 0.3
+      
+    relevance:
+      must_address_input: true
+      must_progress_conversation: true
+      weight: 0.4
+
+# 成功基準とメトリクス
+success_criteria:
+  overall_success_rate: 0.90      # 90%以上のテストが成功
+  extraction_accuracy: 0.95       # 95%以上の情報抽出精度
+  quality_score: 0.85            # 85%以上の応答品質
+  avg_conversation_turns: 5       # 平均5ターン以内で完了
+  error_recovery_rate: 0.80      # 80%以上のエラー回復率
+
+# 改善提案のルール
+improvement_rules:
+  # 情報抽出の問題
+  extraction_issues:
+    - pattern: "名前抽出失敗"
+      category: "prompt"
+      suggested_fix: "システムプロンプトに名前抽出の例文を追加"
+      file: "app/agents/nodes.py"
+      
+    - pattern: "visitor_type誤分類"
+      category: "logic"
+      suggested_fix: "訪問者タイプ判定ロジックの改善"
+      file: "app/agents/nodes.py"
+      
+  # 応答品質の問題
+  quality_issues:
+    - pattern: "応答が長すぎる"
+      category: "config"
+      suggested_fix: "max_tokens設定を150に変更"
+      file: "app/services/text_service.py"
+      
+    - pattern: "敬語表現不足"
+      category: "prompt"
+      suggested_fix: "丁寧語使用をシステムプロンプトに強調"
+      file: "app/agents/nodes.py"
+      
+  # フロー問題
+  flow_issues:
+    - pattern: "エラー回復失敗"
+      category: "logic"
+      suggested_fix: "エラーカウント処理とフォールバック機能の改善"
+      file: "app/agents/reception_graph.py"
