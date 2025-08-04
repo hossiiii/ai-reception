@@ -318,15 +318,31 @@ export class AudioPlayer {
       this.currentSource.buffer = audioBuffer;
       this.currentSource.connect(this.audioContext.destination);
 
-      // Play audio
-      this.currentSource.start(0);
-      console.log('🔊 Playing audio');
+      // Create promise that resolves when audio finishes playing
+      return new Promise<void>((resolve, reject) => {
+        if (!this.currentSource) {
+          reject(new Error('Audio source not available'));
+          return;
+        }
 
-      // Clean up when finished
-      this.currentSource.onended = () => {
-        this.currentSource = null;
-        console.log('🔇 Audio playback finished');
-      };
+        // Clean up when finished
+        this.currentSource.onended = () => {
+          this.currentSource = null;
+          console.log('🔇 Audio playback finished');
+          resolve();
+        };
+
+        // Handle errors
+        this.currentSource.onerror = (error) => {
+          console.error('❌ Audio source error:', error);
+          this.currentSource = null;
+          reject(error);
+        };
+
+        // Play audio
+        this.currentSource.start(0);
+        console.log('🔊 Playing audio');
+      });
 
     } catch (error) {
       console.error('❌ Audio playback error:', error);
@@ -358,9 +374,32 @@ export class AudioPlayer {
       this.currentSource = this.audioContext.createBufferSource();
       this.currentSource.buffer = audioBuffer;
       this.currentSource.connect(this.audioContext.destination);
-      this.currentSource.start(0);
 
-      console.log('🔊 Playing audio from blob');
+      // Create promise that resolves when audio finishes playing
+      return new Promise<void>((resolve, reject) => {
+        if (!this.currentSource) {
+          reject(new Error('Audio source not available'));
+          return;
+        }
+
+        // Clean up when finished
+        this.currentSource.onended = () => {
+          this.currentSource = null;
+          console.log('🔇 Audio playback from blob finished');
+          resolve();
+        };
+
+        // Handle errors
+        this.currentSource.onerror = (error) => {
+          console.error('❌ Audio source error:', error);
+          this.currentSource = null;
+          reject(error);
+        };
+
+        // Play audio
+        this.currentSource.start(0);
+        console.log('🔊 Playing audio from blob');
+      });
 
     } catch (error) {
       console.error('❌ Audio playback error:', error);

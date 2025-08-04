@@ -10,6 +10,8 @@ export default function ReceptionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSystemReady, setIsSystemReady] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(5);
 
   // Check system health on mount
   useEffect(() => {
@@ -53,9 +55,26 @@ export default function ReceptionPage() {
   };
 
   const handleConversationEnd = () => {
-    setSessionId(null);
-    setError(null);
+    // Start countdown instead of immediately resetting
+    setShowCountdown(true);
+    setCountdownValue(5);
   };
+
+  // Countdown effect
+  useEffect(() => {
+    if (showCountdown && countdownValue > 0) {
+      const timer = setTimeout(() => {
+        setCountdownValue(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (showCountdown && countdownValue === 0) {
+      // Reset to welcome screen
+      setShowCountdown(false);
+      setSessionId(null);
+      setError(null);
+      setCountdownValue(5);
+    }
+  }, [showCountdown, countdownValue]);
 
   const handleError = (errorMessage: string) => {
     setError(errorMessage);
@@ -147,13 +166,39 @@ export default function ReceptionPage() {
               </div>
             </div>
           ) : sessionId ? (
-            /* Voice interface */
+            /* Voice interface or countdown */
             <div className="h-full">
-              <VoiceInterface
-                sessionId={sessionId}
-                onConversationEnd={handleConversationEnd}
-                onError={handleError}
-              />
+              {showCountdown ? (
+                /* Countdown screen */
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="mb-8">
+                      <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                        ご利用ありがとうございました
+                      </h2>
+                      <p className="text-xl text-gray-600 mb-8">
+                        まもなく受付開始画面に戻ります
+                      </p>
+                    </div>
+                    
+                    <div className="w-32 h-32 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-8">
+                      <span className="text-5xl font-bold text-primary-600">
+                        {countdownValue}
+                      </span>
+                    </div>
+                    
+                    <div className="text-gray-500">
+                      {countdownValue > 0 ? '受付開始画面に戻るまで' : '画面を切り替えています...'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <VoiceInterface
+                  sessionId={sessionId}
+                  onConversationEnd={handleConversationEnd}
+                  onError={handleError}
+                />
+              )}
             </div>
           ) : (
             /* Welcome screen */

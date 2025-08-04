@@ -53,8 +53,17 @@ class VoiceActivityDetector:
     def calculate_energy(self, audio_chunk: bytes) -> float:
         """Calculate energy level of audio chunk"""
         try:
+            # Check if chunk has valid size for 16-bit PCM
+            if len(audio_chunk) % 2 != 0:
+                # Pad with zero if odd number of bytes
+                audio_chunk = audio_chunk + b'\x00'
+            
             # Convert bytes to numpy array (assuming 16-bit PCM)
             audio_data = np.frombuffer(audio_chunk, dtype=np.int16)
+            
+            # Handle empty audio data
+            if len(audio_data) == 0:
+                return 0.0
 
             # Normalize to [-1, 1] range
             audio_data = audio_data.astype(np.float32) / 32768.0

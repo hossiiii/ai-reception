@@ -47,9 +47,17 @@ export default function VoiceInterface({
   // Handle conversation end
   useEffect(() => {
     if (state.conversationCompleted && onConversationEnd) {
-      setTimeout(() => {
+      console.log('🎬 Conversation completed detected, starting 10 second timer for end transition');
+      // Wait 10 seconds after conversation is completed (audio is already done playing)
+      const timer = setTimeout(() => {
+        console.log('🎬 10 second timer completed, calling onConversationEnd');
         onConversationEnd();
-      }, 10000); // 10 seconds delay like ChatInterface
+      }, 10000);
+      
+      return () => {
+        console.log('🎬 Cleaning up conversation end timer');
+        clearTimeout(timer);
+      };
     }
   }, [state.conversationCompleted, onConversationEnd]);
 

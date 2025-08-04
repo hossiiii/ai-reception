@@ -203,7 +203,7 @@ export class VoiceWebSocketClient {
   /**
    * Send audio data to server
    */
-  sendAudioData(audioData: ArrayBuffer | Blob): boolean {
+  async sendAudioData(audioData: ArrayBuffer | Blob): Promise<boolean> {
     if (!this.isConnected()) {
       console.warn('⚠️ Cannot send audio: WebSocket not connected');
       return false;
@@ -211,10 +211,9 @@ export class VoiceWebSocketClient {
 
     try {
       if (audioData instanceof Blob) {
-        // Convert blob to ArrayBuffer
-        audioData.arrayBuffer().then(buffer => {
-          this.ws?.send(buffer);
-        });
+        // Convert blob to ArrayBuffer and wait for it
+        const buffer = await audioData.arrayBuffer();
+        this.ws?.send(buffer);
       } else {
         this.ws?.send(audioData);
       }

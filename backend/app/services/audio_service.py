@@ -47,7 +47,7 @@ class AudioService:
         try:
             # Create audio file for OpenAI Whisper API
             audio_file = io.BytesIO(audio_data)
-            audio_file.name = "audio.wav"
+            audio_file.name = "audio.webm"  # WebM format from frontend
 
             print(f"🎤 Processing audio input ({len(audio_data)} bytes)...")
 

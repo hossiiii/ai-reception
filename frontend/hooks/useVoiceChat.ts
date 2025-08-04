@@ -165,122 +165,17 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     };
   }, [sessionId, options.vadConfig]);
   
-  // Setup WebSocket message handlers
-  useEffect(() => {
-    if (!wsClient.current) return;
-    
-    const handleVoiceResponse = (message: WSVoiceMessage) => {
-      console.log('📥 Received voice response:', message);
-      
-      // Add AI message
-      addMessage({
-        speaker: 'ai',
-        content: message.text || '',
-        timestamp: new Date().toISOString(),
-        audioData: message.audio
-      });
-      
-      // Update conversation state
-      updateState({
-        currentStep: message.step || 'unknown',
-        visitorInfo: message.visitor_info,
-        calendarResult: message.calendar_result,
-        conversationCompleted: message.completed || false,
-        isProcessing: false
-      });
-      
-      // Store audio for playback
-      if (message.audio) {
-        lastAudioResponse.current = message.audio;
-        
-        // Auto-play response
-        playAudioFromBase64(message.audio);
-      }
-    };
-    
-    const handleTranscription = (message: WSVoiceMessage) => {
-      console.log('📝 Received transcription:', message);
-      
-      if (message.text) {
-        // Add visitor message
-        addMessage({
-          speaker: 'visitor',
-          content: message.text,
-          timestamp: new Date().toISOString()
-        });
-      }
-    };
-    
-    const handleVadStatus = (message: WSVoiceMessage) => {
-      updateState({
-        vadActive: message.is_speech || false,
-        vadEnergy: message.energy_level || 0,
-        vadConfidence: message.confidence || 0
-      });
-    };
-    
-    const handleProcessing = (_message: WSVoiceMessage) => {
-      updateState({
-        isProcessing: true
-      });
-    };
-    
-    const handleReady = (_message: WSVoiceMessage) => {
-      updateState({
-        isProcessing: false
-      });
-    };
-    
-    const handleError = (message: WSVoiceMessage) => {
-      console.error('❌ WebSocket error:', message);
-      updateState({
-        error: message.error || message.message || 'Unknown error',
-        isProcessing: false
-      });
-    };
-    
-    const handleConversationCompleted = (_message: WSVoiceMessage) => {
-      console.log('✅ Conversation completed');
-      updateState({
-        conversationCompleted: true,
-        isProcessing: false
-      });
-      
-      // Stop recording if active
-      if (state.isRecording) {
-        stopRecording();
-      }
-    };
-    
-    // Register handlers
-    wsClient.current.addMessageHandler('voice_response', handleVoiceResponse);
-    wsClient.current.addMessageHandler('transcription', handleTranscription);
-    wsClient.current.addMessageHandler('vad_status', handleVadStatus);
-    wsClient.current.addMessageHandler('processing', handleProcessing);
-    wsClient.current.addMessageHandler('ready', handleReady);
-    wsClient.current.addMessageHandler('error', handleError);
-    wsClient.current.addMessageHandler('conversation_completed', handleConversationCompleted);
-    
-    // WebSocket state changes
-    wsClient.current.addStateChangeHandler((wsState) => {
-      updateState({
-        isConnected: wsState.connected,
-        isConnecting: wsState.connecting,
-        error: wsState.error || null
-      });
-    });
-    
-  }, [addMessage, updateState, state.isRecording]);
+  // Placeholder for WebSocket handlers - will be moved after function definitions
   
   // Setup audio recorder handlers
   useEffect(() => {
     if (!audioRecorder.current) return;
     
-    audioRecorder.current.setChunkCallback((chunk) => {
-      // Send audio chunk to WebSocket
-      if (wsClient.current?.isConnected()) {
-        wsClient.current.sendAudioData(chunk.data);
-      }
+    // Disable chunk-by-chunk sending for now
+    // We'll send the complete audio when recording stops
+    audioRecorder.current.setChunkCallback(async (chunk) => {
+      // Just log chunk info for debugging
+      console.log(`📊 Audio chunk received: ${chunk.size} bytes`);
     });
     
     audioRecorder.current.setStateChangeCallback((recorderState) => {
@@ -306,24 +201,23 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     
   }, [updateState]);
   
-  // Auto-start if requested
-  useEffect(() => {
-    if (options.autoStart) {
-      startVoiceChat();
-    }
-  }, [options.autoStart]);
-  
   // Play audio from base64
   const playAudioFromBase64 = useCallback(async (base64Audio: string) => {
-    if (!audioPlayer.current || !base64Audio) return;
+    if (!audioPlayer.current || !base64Audio) {
+      console.log('🔊 Audio playback skipped: no player or audio data');
+      return;
+    }
     
     try {
+      console.log('🔊 Starting audio playback...');
       updateState({ isPlaying: true });
       await audioPlayer.current.playAudioFromBase64(base64Audio);
+      console.log('🔊 Audio playback completed successfully');
     } catch (error) {
       console.error('❌ Audio playback error:', error);
       updateState({ error: 'Audio playback failed' });
     } finally {
+      console.log('🔊 Setting isPlaying to false');
       updateState({ isPlaying: false });
     }
   }, [updateState]);
@@ -441,7 +335,23 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Stop recording
   const stopRecording = useCallback(() => {
     if (audioRecorder.current) {
-      audioRecorder.current.stopRecording();
+      // Get the complete audio blob
+      const audioBlob = audioRecorder.current.stopRecording();
+      
+      // Send the complete audio file if available
+      if (audioBlob && wsClient.current?.isConnected()) {
+        // Send complete audio file as end_speech command with data
+        wsClient.current.sendCommand('end_speech_with_audio', {
+          audio_size: audioBlob.size,
+          mime_type: audioBlob.type
+        });
+        
+        // Send the audio blob
+        wsClient.current.sendAudioData(audioBlob);
+      } else {
+        // Fallback to simple end_speech command
+        wsClient.current?.sendCommand('end_speech');
+      }
     }
     
     if (vad.current) {
@@ -462,6 +372,163 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   const resetError = useCallback(() => {
     updateState({ error: null });
   }, [updateState]);
+  
+  // Setup WebSocket message handlers (moved after function definitions)
+  useEffect(() => {
+    if (!wsClient.current) return;
+    
+    const handleVoiceResponse = (message: WSVoiceMessage) => {
+      console.log('📥 Received voice response:', message);
+      
+      // Add AI message
+      addMessage({
+        speaker: 'ai',
+        content: message.text || '',
+        timestamp: new Date().toISOString(),
+        audioData: message.audio
+      });
+      
+      // Store audio for playback
+      if (message.audio) {
+        lastAudioResponse.current = message.audio;
+        
+        // Auto-play response and update completion status after playback
+        if (message.completed) {
+          // If this is the final message, wait for audio to finish
+          console.log('🎬 Starting final audio playback...');
+          playAudioFromBase64(message.audio).then(() => {
+            console.log('🎬 Final audio playback completed, setting conversationCompleted to true');
+            // Update conversation state after audio finishes
+            updateState({
+              currentStep: message.step || 'unknown',
+              visitorInfo: message.visitor_info,
+              calendarResult: message.calendar_result,
+              conversationCompleted: true,
+              isProcessing: false
+            });
+          }).catch((error) => {
+            console.error('❌ Error during final audio playback:', error);
+            // Still set completion even if audio fails
+            updateState({
+              currentStep: message.step || 'unknown',
+              visitorInfo: message.visitor_info,
+              calendarResult: message.calendar_result,
+              conversationCompleted: true,
+              isProcessing: false
+            });
+          });
+        } else {
+          // For non-final messages, update state immediately
+          updateState({
+            currentStep: message.step || 'unknown',
+            visitorInfo: message.visitor_info,
+            calendarResult: message.calendar_result,
+            conversationCompleted: false,
+            isProcessing: false
+          });
+          playAudioFromBase64(message.audio);
+        }
+      } else {
+        // No audio, update state immediately
+        updateState({
+          currentStep: message.step || 'unknown',
+          visitorInfo: message.visitor_info,
+          calendarResult: message.calendar_result,
+          conversationCompleted: message.completed || false,
+          isProcessing: false
+        });
+      }
+    };
+    
+    const handleTranscription = (message: WSVoiceMessage) => {
+      console.log('📝 Received transcription:', message);
+      
+      if (message.text) {
+        // Add visitor message
+        addMessage({
+          speaker: 'visitor',
+          content: message.text,
+          timestamp: new Date().toISOString()
+        });
+      }
+    };
+    
+    const handleVadStatus = (message: WSVoiceMessage) => {
+      updateState({
+        vadActive: message.is_speech || false,
+        vadEnergy: message.energy_level || 0,
+        vadConfidence: message.confidence || 0
+      });
+    };
+    
+    const handleProcessing = (_message: WSVoiceMessage) => {
+      updateState({
+        isProcessing: true
+      });
+    };
+    
+    const handleReady = (_message: WSVoiceMessage) => {
+      updateState({
+        isProcessing: false
+      });
+    };
+    
+    const handleError = (message: WSVoiceMessage) => {
+      console.error('❌ WebSocket error:', message);
+      updateState({
+        error: message.error || message.message || 'Unknown error',
+        isProcessing: false
+      });
+    };
+    
+    const handleConversationCompleted = (_message: WSVoiceMessage) => {
+      console.log('✅ Conversation completed');
+      updateState({
+        conversationCompleted: true,
+        isProcessing: false
+      });
+    };
+    
+    // WebSocket state change handler
+    const handleStateChange = (wsState: any) => {
+      updateState({
+        isConnected: wsState.connected,
+        isConnecting: wsState.connecting,
+        error: wsState.error || null
+      });
+    };
+    
+    // Register handlers
+    wsClient.current.addMessageHandler('voice_response', handleVoiceResponse);
+    wsClient.current.addMessageHandler('transcription', handleTranscription);
+    wsClient.current.addMessageHandler('vad_status', handleVadStatus);
+    wsClient.current.addMessageHandler('processing', handleProcessing);
+    wsClient.current.addMessageHandler('ready', handleReady);
+    wsClient.current.addMessageHandler('error', handleError);
+    wsClient.current.addMessageHandler('conversation_completed', handleConversationCompleted);
+    wsClient.current.addStateChangeHandler(handleStateChange);
+    
+    // Cleanup function to remove handlers
+    return () => {
+      if (wsClient.current) {
+        wsClient.current.removeMessageHandler('voice_response', handleVoiceResponse);
+        wsClient.current.removeMessageHandler('transcription', handleTranscription);
+        wsClient.current.removeMessageHandler('vad_status', handleVadStatus);
+        wsClient.current.removeMessageHandler('processing', handleProcessing);
+        wsClient.current.removeMessageHandler('ready', handleReady);
+        wsClient.current.removeMessageHandler('error', handleError);
+        wsClient.current.removeMessageHandler('conversation_completed', handleConversationCompleted);
+        wsClient.current.removeStateChangeHandler(handleStateChange);
+      }
+    };
+  }, [addMessage, updateState, playAudioFromBase64]);
+  
+  // Auto-start if requested
+  useEffect(() => {
+    if (options.autoStart) {
+      startVoiceChat();
+    }
+  }, [options.autoStart, startVoiceChat]);
   
   return {
     state,
