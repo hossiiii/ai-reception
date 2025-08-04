@@ -1,49 +1,50 @@
 import asyncio
-import json
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any
+
 import httpx
+
 from ..config import settings
-from ..models.visitor import VisitorInfo, ConversationLog
+from ..models.visitor import ConversationLog, VisitorInfo
 
 
 class SlackService:
     """Slack notification service with webhook integration"""
-    
+
     def __init__(self):
         self.webhook_url = settings.slack_webhook_url
         self.timeout = 10.0
-    
+
     async def send_visitor_notification(
-        self, 
-        visitor_info: VisitorInfo, 
+        self,
+        visitor_info: VisitorInfo,
         conversation_logs: list[ConversationLog],
-        calendar_result: Optional[Dict[str, Any]] = None
+        calendar_result: dict[str, Any] | None = None
     ) -> bool:
         """Send visitor notification to Slack with rich formatting"""
         try:
             # Create rich message block
             blocks = self._create_visitor_message_blocks(
-                visitor_info, 
-                conversation_logs, 
+                visitor_info,
+                conversation_logs,
                 calendar_result
             )
-            
+
             # Send to Slack
             return await self._send_webhook_message({
                 "blocks": blocks,
                 "text": f"来客対応: {visitor_info.get('name', 'N/A')}様 ({visitor_info.get('company', 'N/A')})"
             })
-            
+
         except Exception as e:
             print(f"Slack notification error: {e}")
             return False
-    
+
     async def send_error_notification(
-        self, 
-        error_message: str, 
+        self,
+        error_message: str,
         session_id: str,
-        visitor_info: Optional[VisitorInfo] = None
+        visitor_info: VisitorInfo | None = None
     ) -> bool:
         """Send error notification to Slack"""
         try:
@@ -77,7 +78,7 @@ class SlackService:
                     }
                 }
             ]
-            
+
             if visitor_info:
                 blocks.append({
                     "type": "section",
@@ -92,27 +93,27 @@ class SlackService:
                         }
                     ]
                 })
-            
+
             return await self._send_webhook_message({
                 "blocks": blocks,
                 "text": f"受付システムエラー: {error_message}"
             })
-            
+
         except Exception as e:
             print(f"Slack error notification failed: {e}")
             return False
-    
+
     def _create_visitor_message_blocks(
-        self, 
-        visitor_info: VisitorInfo, 
+        self,
+        visitor_info: VisitorInfo,
         conversation_logs: list[ConversationLog],
-        calendar_result: Optional[Dict[str, Any]] = None
-    ) -> list[Dict[str, Any]]:
+        calendar_result: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Create rich message blocks for visitor notification"""
-        
+
         # Determine visitor type icon and color
         type_info = self._get_visitor_type_info(visitor_info.get('visitor_type'))
-        
+
         blocks = [
             {
                 "type": "header",
@@ -144,7 +145,7 @@ class SlackService:
                 ]
             }
         ]
-        
+
         # Add calendar information if available
         if calendar_result:
             if calendar_result.get('found'):
@@ -163,14 +164,14 @@ class SlackService:
                         "text": "*予約状況:* ❌ 予約なし"
                     }
                 })
-        
+
         # Add conversation summary if available
         if conversation_logs:
             conversation_text = "\n".join([
                 f"{'👤' if log['speaker'] == 'visitor' else '🤖'} {log['message'][:100]}..."
                 for log in conversation_logs[-3:]  # Last 3 messages
             ])
-            
+
             blocks.append({
                 "type": "section",
                 "text": {
@@ -178,7 +179,7 @@ class SlackService:
                     "text": f"*会話履歴:*\n```{conversation_text}```"
                 }
             })
-        
+
         # Add action buttons for follow-up
         blocks.append({
             "type": "actions",
@@ -205,10 +206,10 @@ class SlackService:
                 }
             ]
         })
-        
+
         return blocks
-    
-    def _get_visitor_type_info(self, visitor_type: Optional[str]) -> Dict[str, str]:
+
+    def _get_visitor_type_info(self, visitor_type: str | None) -> dict[str, str]:
         """Get visitor type display information"""
         type_mapping = {
             "appointment": {"name": "予約来客", "icon": "📅"},
@@ -216,18 +217,18 @@ class SlackService:
             "delivery": {"name": "配達業者", "icon": "📦"},
             None: {"name": "不明", "icon": "❓"}
         }
-        
+
         return type_mapping.get(visitor_type, type_mapping[None])
-    
-    async def _send_webhook_message(self, message: Dict[str, Any]) -> bool:
+
+    async def _send_webhook_message(self, message: dict[str, Any]) -> bool:
         """Send message to Slack webhook with retry logic"""
         if not self.webhook_url:
             print("Slack webhook URL not configured")
             return False
-        
+
         max_retries = 3
         retry_delay = 1.0
-        
+
         for attempt in range(max_retries):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -236,17 +237,17 @@ class SlackService:
                         json=message,
                         headers={"Content-Type": "application/json"}
                     )
-                    
+
                     if response.status_code == 200:
                         return True
                     else:
                         print(f"Slack webhook failed with status {response.status_code}: {response.text}")
-                        
+
             except Exception as e:
                 print(f"Slack webhook attempt {attempt + 1} failed: {e}")
-                
+
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
-        
+
         return False

@@ -52,8 +52,9 @@ export default function ConversationDisplay({
   const renderMessage = (message: ConversationMessage, index: number) => {
     const isAI = message.speaker === 'ai';
     const isVisitor = message.speaker === 'visitor';
-    // Create a more stable key using timestamp and content
-    const messageKey = `${message.timestamp || index}-${message.speaker}-${message.content.slice(0, 20)}`;
+    // Create a unique key using timestamp, speaker, index, and content hash
+    const contentHash = message.content.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const messageKey = `${message.timestamp || index}-${message.speaker}-${index}-${contentHash}`;
 
     return (
       <div

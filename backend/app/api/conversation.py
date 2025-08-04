@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
 import uuid
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from ..agents.reception_graph import ReceptionGraphManager
 
 
@@ -16,8 +18,8 @@ class ConversationStartResponse(BaseModel):
     session_id: str
     message: str
     step: str
-    visitor_info: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    visitor_info: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class MessageResponse(BaseModel):
@@ -26,22 +28,22 @@ class MessageResponse(BaseModel):
     session_id: str
     message: str
     step: str
-    visitor_info: Optional[Dict[str, Any]] = None
-    calendar_result: Optional[Dict[str, Any]] = None
+    visitor_info: dict[str, Any] | None = None
+    calendar_result: dict[str, Any] | None = None
     completed: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class ConversationHistoryResponse(BaseModel):
     """Response model for conversation history"""
     success: bool
     session_id: str
-    messages: List[Dict[str, Any]] = []
-    visitor_info: Optional[Dict[str, Any]] = None
-    current_step: Optional[str] = None
-    calendar_result: Optional[Dict[str, Any]] = None
+    messages: list[dict[str, Any]] = []
+    visitor_info: dict[str, Any] | None = None
+    current_step: str | None = None
+    calendar_result: dict[str, Any] | None = None
     completed: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -74,12 +76,12 @@ async def start_conversation(
     try:
         # Generate unique session ID
         session_id = str(uuid.uuid4())
-        
+
         # Start conversation
         result = await manager.start_conversation(session_id)
-        
+
         return ConversationStartResponse(**result)
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -111,17 +113,17 @@ async def send_message(
                 status_code=400,
                 detail="Invalid session ID format"
             )
-        
+
         # Validate message content
         if not request.message.strip():
             raise HTTPException(
                 status_code=400,
                 detail="Message cannot be empty"
             )
-        
+
         # Send message to graph
         result = await manager.send_message(session_id, request.message.strip())
-        
+
         if not result["success"]:
             if "Session not found" in result.get("error", ""):
                 raise HTTPException(
@@ -133,9 +135,9 @@ async def send_message(
                     status_code=500,
                     detail=result.get("error", "Message processing failed")
                 )
-        
+
         return MessageResponse(**result)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -167,10 +169,10 @@ async def get_conversation_history(
                 status_code=400,
                 detail="Invalid session ID format"
             )
-        
+
         # Get conversation history
         result = await manager.get_conversation_history(session_id)
-        
+
         if not result["success"]:
             if "Session not found" in result.get("error", ""):
                 raise HTTPException(
@@ -182,9 +184,9 @@ async def get_conversation_history(
                     status_code=500,
                     detail=result.get("error", "Failed to retrieve history")
                 )
-        
+
         return ConversationHistoryResponse(**result)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -198,7 +200,7 @@ async def get_conversation_history(
 async def end_conversation(
     session_id: str,
     manager: ReceptionGraphManager = Depends(get_graph_manager)
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """End a conversation session and clean up resources
     
     Args:
@@ -216,15 +218,15 @@ async def end_conversation(
                 status_code=400,
                 detail="Invalid session ID format"
             )
-        
+
         # Note: LangGraph MemorySaver doesn't have explicit cleanup
         # In production, you might want to implement session timeout cleanup
-        
+
         return {
             "message": f"Conversation {session_id} ended successfully",
             "session_id": session_id
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -234,8 +236,8 @@ async def end_conversation(
         )
 
 
-@router.get("/", response_model=List[str])
-async def list_active_sessions() -> List[str]:
+@router.get("/", response_model=list[str])
+async def list_active_sessions() -> list[str]:
     """List active conversation sessions
     
     Note: This is a placeholder. In production, you'd want to implement

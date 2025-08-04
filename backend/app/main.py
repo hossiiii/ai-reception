@@ -1,19 +1,22 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import asyncio
 import sys
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 try:
+    from .api.conversation import health_router
+    from .api.conversation import router as conversation_router
     from .config import settings
-    from .api.conversation import router as conversation_router, health_router
 except ImportError:
     # For direct execution
-    import sys
     import os
+    import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from app.api.conversation import health_router
+    from app.api.conversation import router as conversation_router
     from app.config import settings
-    from app.api.conversation import router as conversation_router, health_router
 
 
 @asynccontextmanager
@@ -23,20 +26,20 @@ async def lifespan(app: FastAPI):
     print("🚀 Reception System API starting up...")
     print(f"Environment: {settings.environment}")
     print(f"Debug mode: {settings.debug}")
-    
+
     # Validate required environment variables (with development fallbacks)
     required_vars = [
         "openai_api_key",
-        "google_service_account_key", 
+        "google_service_account_key",
         "slack_webhook_url",
         "meeting_room_calendar_ids"
     ]
-    
+
     missing_vars = []
     for var in required_vars:
         if not getattr(settings, var, None):
             missing_vars.append(var.upper())
-    
+
     if missing_vars:
         if settings.environment == "development":
             print(f"⚠️  Missing environment variables in development mode: {', '.join(missing_vars)}")
@@ -44,12 +47,12 @@ async def lifespan(app: FastAPI):
         else:
             print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
             sys.exit(1)
-    
+
     print("✅ All required environment variables are set")
     print("✅ Reception System API started successfully")
-    
+
     yield
-    
+
     # Shutdown
     print("🛑 Reception System API shutting down...")
 
@@ -58,16 +61,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Reception System API",
     description="""
-    Text-based AI reception system for visitor management.
+    Voice-enabled AI reception system for visitor management.
     
     Features:
+    - Voice conversation using OpenAI Whisper + TTS
+    - Real-time WebSocket voice streaming
     - Interactive conversation flow using LangGraph
+    - Voice Activity Detection (VAD)
     - Google Calendar integration for appointment checking
     - Visitor type detection (appointment, sales, delivery)
     - Slack notifications for response logging
-    - Extensible architecture for Step2 voice features
+    - Backward compatible with text-based interface
     """,
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None
@@ -89,11 +95,11 @@ app.add_middleware(
 async def global_exception_handler(request, exc):
     """Global exception handler for unhandled errors"""
     print(f"Unhandled exception: {exc}")
-    
+
     if settings.debug:
         import traceback
         traceback.print_exc()
-    
+
     return JSONResponse(
         status_code=500,
         content={
@@ -107,6 +113,14 @@ async def global_exception_handler(request, exc):
 app.include_router(conversation_router)
 app.include_router(health_router)
 
+# Add WebSocket endpoint for voice chat
+from fastapi import WebSocket
+from .api.websocket import handle_voice_websocket
+
+@app.websocket("/ws/voice/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await handle_voice_websocket(websocket, session_id)
+
 
 # Root endpoint
 @app.get("/")
@@ -114,11 +128,21 @@ async def root():
     """Root endpoint with API information"""
     return {
         "message": "AI Reception System API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "environment": settings.environment,
+        "features": [
+            "Voice conversation (WebSocket)",
+            "Text conversation (REST API)",
+            "Real-time voice streaming",
+            "Voice Activity Detection",
+            "LangGraph conversation flow",
+            "Google Calendar integration",
+            "Slack notifications"
+        ],
         "endpoints": {
             "health": "/api/health",
             "conversations": "/api/conversations",
+            "voice_websocket": "/ws/voice/{session_id}",
             "docs": "/docs" if settings.debug else "disabled",
             "redoc": "/redoc" if settings.debug else "disabled"
         }
@@ -128,7 +152,7 @@ async def root():
 # Development server runner
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Run with hot reload in development
     uvicorn.run(
         "app.main:app",

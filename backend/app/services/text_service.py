@@ -1,16 +1,17 @@
-from abc import ABC, abstractmethod
 from typing import Protocol
+
 from openai import AsyncOpenAI
+
 from ..config import settings
 
 
 class MessageProcessor(Protocol):
     """Protocol for input/output processing - enables Step2 voice expansion"""
-    
+
     async def process_input(self, input_data: str) -> str:
         """Process input and convert to text"""
         ...
-    
+
     async def generate_output(self, text: str) -> str:
         """Generate output from text"""
         ...
@@ -18,7 +19,7 @@ class MessageProcessor(Protocol):
 
 class TextService:
     """Step1: Text processing service with extensible architecture for Step2"""
-    
+
     def __init__(self) -> None:
         # Initialize OpenAI client with fallback for development
         if settings.openai_api_key and settings.openai_api_key.startswith('sk-'):
@@ -29,18 +30,18 @@ class TextService:
             self.openai_client = None
             self.use_mock = True
             print("⚠️ TextService initialized with mock mode (no valid OpenAI API key)")
-    
+
     async def process_input(self, input_data: str) -> str:
         """Step1: Return input text as-is, cleaned"""
         return input_data.strip()
-    
+
     async def generate_output(self, text: str, context: str = "") -> str:
         """Generate AI response using OpenAI GPT-4 or mock for development"""
-        
+
         # Use mock response in development mode
         if self.use_mock:
             return await self._generate_mock_response(text, context)
-        
+
         try:
             system_prompt = """あなたは丁寧で効率的な受付AIです。以下のルールに従って応答してください:
 
@@ -62,7 +63,7 @@ class TextService:
             ]
 
             print(f"🤖 Sending to OpenAI: {text[:50]}...")
-            
+
             response = await self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",  # More cost-effective model
                 messages=messages,
@@ -70,23 +71,23 @@ class TextService:
                 temperature=0.7,
                 timeout=15  # Add timeout
             )
-            
+
             ai_response = response.choices[0].message.content or ""
             print(f"✅ OpenAI response: {ai_response[:50]}...")
-            
+
             return ai_response
-            
+
         except Exception as e:
             print(f"OpenAI API error: {e}")
             return "申し訳ございません。システムエラーが発生しました。もう一度お試しください。"
-    
+
     async def _generate_mock_response(self, text: str, context: str = "") -> str:
         """Generate mock AI response for development mode"""
         import asyncio
-        
+
         # Add small delay to simulate API call
         await asyncio.sleep(0.5)
-        
+
         # Simple mock responses based on context
         if "名前" in text and "会社" in text:
             return """ありがとうございます。以下の内容で確認いたします：
@@ -96,7 +97,7 @@ class TextService:
 
 この内容で間違いございませんか？
 「はい」または「いいえ」でお答えください。"""
-        
+
         elif "はい" in text or "yes" in text.lower():
             return """承知いたしました。ご来訪の目的をお聞かせください：
 
@@ -105,7 +106,7 @@ class TextService:
 3. 配達業者の方
 
 該当する番号をお教えください。"""
-        
+
         else:
             return """申し訳ございません。もう一度お聞かせください。
 
