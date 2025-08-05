@@ -127,7 +127,7 @@ class TestAudioService:
                          new_callable=AsyncMock, side_effect=Exception("API Error")):
             result = await real_audio_service.process_audio_input(test_audio_data)
         
-        assert "エラーが発生しました" in result
+        assert "申し訳ございません。音声が聞き取れませんでした。もう一度お話しください。" == result
     
     @pytest.mark.asyncio
     async def test_generate_audio_output_error_handling(self, real_audio_service):
@@ -156,12 +156,12 @@ class TestAudioService:
     async def test_mock_response_patterns(self, mock_audio_service):
         """Test different mock response patterns"""
         # Test name and company input
-        result1 = await mock_audio_service.generate_output("山田太郎、株式会社テストです")
+        result1 = await mock_audio_service.generate_output("名前は山田太郎で、会社は株式会社テストです")
         assert "確認" in result1
         
         # Test confirmation
         result2 = await mock_audio_service.generate_output("はい")
-        assert any(keyword in result2 for keyword in ["目的", "番号"])
+        assert any(keyword in result2 for keyword in ["目的", "用件"])
         
         # Test default case
         result3 = await mock_audio_service.generate_output("よくわからない")

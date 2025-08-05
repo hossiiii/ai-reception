@@ -351,11 +351,11 @@ class CalendarService:
                     'summary': f'{visitor_identifier}様との会議',
                     'start': {'dateTime': '2025-08-02T10:00:00+09:00'},
                     'end': {'dateTime': '2025-08-02T11:00:00+09:00'},
-                    'location': '会議室A',
+                    'location': '入って右手の会議室',
                     'attendees': [{'email': 'example@company.com'}]
                 }],
                 'identifier': visitor_identifier,
-                'roomName': '会議室A',
+                'roomName': '入って右手の会議室',
                 'message': f'{visitor_identifier}様の本日10:00からの会議室予約を確認いたしました。奥の呼び鈴を押してお待ちください。',
                 'error': None
             }
