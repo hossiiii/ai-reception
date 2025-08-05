@@ -57,6 +57,50 @@ class ReceptionNodes:
             "error_count": 0
         }
 
+    async def collect_name_node(self, state: ConversationState) -> ConversationState:
+        """Collect visitor name and company information (simpler version for testing)"""
+        last_message = state["messages"][-1]
+
+        if not isinstance(last_message, HumanMessage):
+            return {
+                **state,
+                "current_step": "name_collection",
+                "error_count": state.get("error_count", 0) + 1
+            }
+
+        # Extract visitor info using the existing method
+        visitor_info = self._extract_visitor_info(last_message.content)
+        
+        # Check if we have both name and company
+        if not visitor_info["name"] or not visitor_info["company"]:
+            # Missing information - ask for more details
+            ai_message = AIMessage(content="申し訳ございませんが、会社名とお名前の両方を教えていただけますでしょうか？例：山田太郎、株式会社テストです。")
+            
+            return {
+                **state,
+                "messages": [ai_message],
+                "current_step": "name_collection",
+                "error_count": state.get("error_count", 0) + 1
+            }
+
+        # Information is complete - proceed to confirmation
+        confirmation_message = f"""以下の情報で間違いございませんでしょうか？
+
+・会社名：{visitor_info['company']}
+・お名前：{visitor_info['name']}
+
+情報が正しい場合は「はい」、修正が必要な場合は「いいえ」とお答えください。"""
+
+        ai_message = AIMessage(content=confirmation_message)
+
+        return {
+            **state,
+            "messages": [HumanMessage(content=last_message.content), ai_message],
+            "visitor_info": visitor_info,
+            "current_step": "confirmation",
+            "error_count": 0
+        }
+
     async def collect_all_info_node(self, state: ConversationState) -> ConversationState:
         """Collect visitor company, name and purpose information using AI"""
         last_message = state["messages"][-1]

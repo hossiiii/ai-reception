@@ -11,6 +11,7 @@ class VisitorInfo(TypedDict):
     visitor_type: VisitorType | None
     confirmed: bool
     correction_count: int
+    purpose: str
 
 
 class ConversationLog(TypedDict):
