@@ -82,6 +82,7 @@ export interface UseVoiceChatReturn {
   stopRecording: () => void;
   playLastResponse: () => void;
   resetError: () => void;
+  sendTextInput: (text: string) => void;
   
   // Utility
   sessionId: string;
@@ -373,6 +374,27 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     updateState({ error: null });
   }, [updateState]);
   
+  // Send text input
+  const sendTextInput = useCallback((text: string) => {
+    if (!wsClient.current?.isConnected() || !text.trim()) {
+      updateState({ error: 'Cannot send text: not connected or empty input' });
+      return;
+    }
+    
+    // Send text input command
+    wsClient.current.sendCommand('text_input', { text: text.trim() });
+    
+    // Add visitor message
+    addMessage({
+      speaker: 'visitor',
+      content: text.trim(),
+      timestamp: new Date().toISOString()
+    });
+    
+    // Set processing state
+    updateState({ isProcessing: true });
+  }, [updateState, addMessage]);
+  
   // Setup WebSocket message handlers (moved after function definitions)
   useEffect(() => {
     if (!wsClient.current) return;
@@ -539,6 +561,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     stopRecording,
     playLastResponse,
     resetError,
+    sendTextInput,
     sessionId
   };
 }

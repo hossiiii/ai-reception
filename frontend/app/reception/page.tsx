@@ -74,6 +74,8 @@ export default function ReceptionPage() {
       setError(null);
       setCountdownValue(5);
     }
+    // Add return statement for all code paths
+    return undefined;
   }, [showCountdown, countdownValue]);
 
   const handleError = (errorMessage: string) => {

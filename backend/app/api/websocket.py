@@ -278,6 +278,57 @@ async def handle_voice_websocket(
                             expected_audio_size = message.get("audio_size", 0)
                             mime_type = message.get("mime_type", "audio/webm")
                             print(f"📥 Expecting audio blob: {expected_audio_size} bytes, type: {mime_type}")
+                        elif command == "text_input":
+                            # Handle direct text input (for name/company clarification)
+                            text_input = message.get("text", "")
+                            if text_input:
+                                print(f"📝 Direct text input received: {text_input}")
+                                
+                                # Send processing status
+                                await manager.broadcast_to_session(session_id, "processing", {
+                                    "message": "テキストを処理中..."
+                                })
+                                
+                                # Process message through Step1 LangGraph system
+                                response = await manager.graph_manager.send_message(session_id, text_input)
+                                
+                                if response["success"]:
+                                    # Generate audio response
+                                    response_text = response["message"]
+                                    response_audio = await manager.audio_service.generate_audio_output(response_text)
+                                    
+                                    # Send voice response
+                                    await manager.broadcast_to_session(session_id, "voice_response", {
+                                        "text": response_text,
+                                        "audio": base64.b64encode(response_audio).decode() if response_audio else "",
+                                        "step": response["step"],
+                                        "visitor_info": response.get("visitor_info"),
+                                        "calendar_result": response.get("calendar_result"),
+                                        "completed": response.get("completed", False)
+                                    })
+                                    
+                                    # Auto-end if conversation is completed
+                                    if response.get("completed"):
+                                        await manager.broadcast_to_session(session_id, "conversation_completed", {
+                                            "message": "対応が完了しました。ありがとうございました。"
+                                        })
+                                        break
+                                else:
+                                    # Send error response
+                                    error_text = response.get("error", "処理中にエラーが発生しました。もう一度お試しください。")
+                                    error_audio = await manager.audio_service.generate_audio_output(error_text)
+                                    
+                                    await manager.broadcast_to_session(session_id, "voice_response", {
+                                        "text": error_text,
+                                        "audio": base64.b64encode(error_audio).decode() if error_audio else "",
+                                        "step": "error",
+                                        "error": response.get("error")
+                                    })
+                                
+                                # Send ready status
+                                await manager.broadcast_to_session(session_id, "ready", {
+                                    "message": "Ready for next input"
+                                })
                         elif command == "end_speech":
                             # Force end speech and process buffer
                             if is_collecting_speech and len(audio_buffer) > 0:

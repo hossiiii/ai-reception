@@ -332,12 +332,8 @@ export class AudioPlayer {
           resolve();
         };
 
-        // Handle errors
-        this.currentSource.onerror = (error) => {
-          console.error('❌ Audio source error:', error);
-          this.currentSource = null;
-          reject(error);
-        };
+        // Note: AudioBufferSourceNode doesn't have onerror property
+        // Error handling is done through try-catch and promise rejection
 
         // Play audio
         this.currentSource.start(0);
@@ -389,12 +385,8 @@ export class AudioPlayer {
           resolve();
         };
 
-        // Handle errors
-        this.currentSource.onerror = (error) => {
-          console.error('❌ Audio source error:', error);
-          this.currentSource = null;
-          reject(error);
-        };
+        // Note: AudioBufferSourceNode doesn't have onerror property
+        // Error handling is done through try-catch and promise rejection
 
         // Play audio
         this.currentSource.start(0);

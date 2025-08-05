@@ -12,7 +12,9 @@ class ApiClient {
 
   constructor(config?: Partial<ApiConfig>) {
     this.config = {
-      baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+      baseUrl: process.env.NODE_ENV === 'production' 
+        ? (process.env.NEXT_PUBLIC_API_URL || 'https://your-app.vercel.app') 
+        : 'http://localhost:8000',
       timeout: 30000, // Increased from 10s to 30s for AI processing
       retries: 3,
       ...config
