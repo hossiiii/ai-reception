@@ -79,7 +79,7 @@ class TestCalendarService:
         assert result['identifier'] == '山田太郎'
         assert '山田太郎' in result['message']
         assert result['error'] is None
-        assert result['roomName'] == '会議室A'
+        assert result['roomName'] == '入って右手の会議室'
         assert len(result['events']) == 1
 
     @patch('app.services.calendar_service.CalendarService._get_calendar_client')

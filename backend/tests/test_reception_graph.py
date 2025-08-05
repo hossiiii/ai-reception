@@ -196,7 +196,7 @@ class TestReceptionNodes:
             "identifier": "山田太郎",
             "message": "予約を確認いたしました",
             "error": None,
-            "roomName": "会議室A"
+            "roomName": "入って右手の会議室"
         }
 
         mock_calendar.check_todays_reservations = AsyncMock(return_value=mock_calendar_result)
@@ -215,7 +215,7 @@ class TestReceptionNodes:
 
         assert result["current_step"] == "guidance"
         assert result["calendar_result"]["found"] is True
-        assert "会議室A" in result["calendar_result"]["roomName"]
+        assert "入って右手の会議室" in result["calendar_result"]["roomName"]
 
     @pytest.mark.asyncio
     async def test_guide_visitor_node_appointment_found(self, reception_nodes):
@@ -231,7 +231,7 @@ class TestReceptionNodes:
         calendar_result = {
             "found": True,
             "message": "予約を確認いたしました",
-            "roomName": "会議室A"
+            "roomName": "入って右手の会議室"
         }
 
         state: ConversationState = {

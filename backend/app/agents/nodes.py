@@ -31,7 +31,6 @@ class ReceptionNodes:
 以下を含めてください：
 1. 歓迎の挨拶
 2. 会社名・お名前・訪問目的を一度に確認依頼
-3. 入力例の提示（会社名、名前、目的を含む）
 
 丁寧で親しみやすい対応を心がけてください。
 訪問者が一度の入力で必要な情報を全て提供できるように案内してください。
@@ -1131,7 +1130,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
 以下の状況に基づいて、適切な案内メッセージを生成してください:
 
-1. 予約来訪者で予約確認済み → 会議室案内、お飲み物の提供、感謝の言葉
+1. 予約来訪者で予約確認済み → 会議室案内、感謝の言葉
 2. 予約来訪者で予約未確認 → 丁寧な謝罪、事前予約制の説明、お引き取りのお願い
 3. 営業訪問者 → 丁寧なお断り、名刺受け取りの案内
 4. 配達業者 → 配達手順の案内（置き配、サイン等）
@@ -1216,12 +1215,12 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         company = visitor_info["company"].lower()
 
         # Delivery companies
-        delivery_keywords = ["宅急便", "宅配", "配送", "配達", "ヤマト", "佐川", "郵便", "ups", "dhl", "fedex"]
+        delivery_keywords = ["宅急便", "宅配", "配送", "配達", "ヤマト", "佐川", "郵便", "ups", "dhl", "fedex", "アマゾン", "amazon"]
         if any(keyword in company for keyword in delivery_keywords):
             return "delivery"
 
         # Sales indicators (generic company names or sales-related terms)
-        sales_keywords = ["営業", "販売", "セールス", "商事", "trading"]
+        sales_keywords = ["営業", "販売", "セールス", "商品", "商談", "紹介", "サービス", "ソリューション"]
         if any(keyword in company for keyword in sales_keywords):
             return "sales"
 
@@ -1240,7 +1239,6 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             if calendar_result and calendar_result.get("found"):
                 return f"""お疲れ様です。{calendar_result.get('message', '')}
 
-会議室でお待ちいただいている間、お飲み物はいかがでしょうか？
 本日はお忙しい中、お越しいただきありがとうございます。"""
             else:
                 return calendar_result.get("message", "予約の確認ができませんでした。") + """
@@ -1255,7 +1253,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 現在お断りさせていただいております。
 
 もしお名刺や資料をお預けいただける場合は、
-こちらで承らせていただきます。
+こちらにお預けください。
 必要に応じて後日、担当者よりご連絡差し上げます。"""
 
         elif visitor_type == "delivery":
