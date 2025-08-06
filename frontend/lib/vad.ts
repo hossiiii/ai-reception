@@ -196,11 +196,17 @@ export class ClientVoiceActivityDetector {
     // Update state
     this.state.energy = energy; // Use raw energy instead of smoothed
     this.state.volume = volume;
+    const previousActive = this.state.isActive;
     this.state.isActive = this.shouldBeActive();
 
-    // Log energy for debugging
-    if (isAboveThreshold) {
-      console.log(`🎤 Energy: ${energy.toFixed(1)} (above threshold ${this.config.energyThreshold})`);
+    // Log state transitions for debugging
+    if (previousActive !== this.state.isActive) {
+      console.log(`📊 VAD State Change: ${previousActive ? 'ACTIVE' : 'INACTIVE'} → ${this.state.isActive ? 'ACTIVE' : 'INACTIVE'}`);
+    }
+    
+    // Log energy for debugging (only when above threshold)
+    if (isAboveThreshold && this.state.consecutiveSpeech <= this.config.updateInterval) {
+      console.log(`🎤 Energy spike: ${energy.toFixed(1)} (threshold: ${this.config.energyThreshold})`);
     }
 
     // Create result
@@ -317,15 +323,26 @@ export class ClientVoiceActivityDetector {
    * Determine if should be considered active based on duration thresholds
    */
   private shouldBeActive(): boolean {
-    // エネルギーが閾値を超えた瞬間から発話開始
-    // (最小発話時間の制約を緩和して、即座に検出)
-    if (this.state.consecutiveSpeech > 0) {
-      // 発話検出中は、無音が1500ms続くまでアクティブを維持
+    // 新しく発話が始まった場合（エネルギーが閾値を超えている）
+    if (this.state.consecutiveSpeech > 0 && !this.state.isActive) {
+      console.log(`🎤 Speech started (energy above threshold)`);
+      return true;
+    }
+    
+    // 既に発話中の場合
+    if (this.state.isActive) {
+      // 無音が1500ms未満なら発話継続
       if (this.state.consecutiveSilence < this.config.silenceDuration) {
+        // デバッグ: 無音継続時間をログ出力
+        if (this.state.consecutiveSilence > 0 && this.state.consecutiveSilence % 500 === 0) {
+          console.log(`⏱️ Silence duration: ${this.state.consecutiveSilence}ms / ${this.config.silenceDuration}ms`);
+        }
         return true;
+      } else {
+        // 1500ms無音が続いたら発話終了
+        console.log(`🔇 Speech ended after ${this.state.consecutiveSilence}ms of silence`);
+        return false;
       }
-      // 1500ms無音が続いたら発話終了
-      console.log(`🔇 Speech ended after ${this.state.consecutiveSilence}ms of silence`);
     }
 
     return false;

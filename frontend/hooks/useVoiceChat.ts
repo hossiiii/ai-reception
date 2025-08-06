@@ -189,20 +189,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     
   }, [updateState]);
   
-  // Setup VAD handlers
-  useEffect(() => {
-    if (!vad.current) return;
-    
-    vad.current.addCallback((vadResult: VADResult) => {
-      updateState({
-        vadActive: vadResult.isActive,
-        vadVolume: vadResult.volume,
-        vadEnergy: vadResult.energy,
-        vadConfidence: vadResult.confidence
-      });
-    });
-    
-  }, [updateState]);
+  // VAD handlers will be set up after stopRecording is defined
   
   // Play audio from base64
   const playAudioFromBase64 = useCallback(async (base64Audio: string) => {
@@ -396,6 +383,47 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     // Set processing state
     updateState({ isProcessing: true });
   }, [updateState, addMessage]);
+  
+  // Setup VAD handlers for auto-stop recording
+  useEffect(() => {
+    if (!vad.current) return;
+    
+    // Track previous VAD state for detecting transitions
+    let previousActive = false;
+    
+    const vadCallback = (vadResult: VADResult) => {
+      // Update VAD state
+      updateState({
+        vadActive: vadResult.isActive,
+        vadVolume: vadResult.volume,
+        vadEnergy: vadResult.energy,
+        vadConfidence: vadResult.confidence
+      });
+      
+      // Detect speech end transition (active -> inactive)
+      if (previousActive && !vadResult.isActive) {
+        console.log('🔇 VAD detected speech end - auto-stopping recording');
+        
+        // Check if we're currently recording
+        if (audioRecorder.current?.getState().isRecording) {
+          // Auto-stop recording and send to server
+          stopRecording();
+        }
+      }
+      
+      // Update previous state
+      previousActive = vadResult.isActive;
+    };
+    
+    vad.current.addCallback(vadCallback);
+    
+    // Cleanup
+    return () => {
+      if (vad.current) {
+        vad.current.removeCallback(vadCallback);
+      }
+    };
+  }, [updateState, stopRecording]);
   
   // Setup WebSocket message handlers (moved after function definitions)
   useEffect(() => {
