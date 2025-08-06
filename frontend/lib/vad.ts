@@ -46,8 +46,8 @@ export class ClientVoiceActivityDetector {
     this.config = {
       fftSize: 256,
       smoothingTimeConstant: 0.8,
-      energyThreshold: 30, // 0-100 scale
-      silenceDuration: 1000, // 1 second
+      energyThreshold: 30, // 0-100 scale - 30を超えたら発話検出
+      silenceDuration: 1500, // 1.5 seconds - 30を下回る状態が1500ms続いたら発話終了
       minSpeechDuration: 300, // 300ms
       updateInterval: 50, // 50ms updates (20 FPS)
       ...config
@@ -180,23 +180,34 @@ export class ClientVoiceActivityDetector {
     const energy = this.calculateEnergy(this.dataArray);
     const volume = this.calculateVolume(this.dataArray);
 
-    // Update history for smoothing
+    // Update history for smoothing (but use raw energy for threshold check)
     this.updateHistory(energy);
 
-    // Determine voice activity
-    const smoothedEnergy = this.getSmoothEnergy();
-    const isActive = smoothedEnergy > this.config.energyThreshold;
+    // Use raw energy for threshold comparison (not smoothed)
+    // エネルギーが30を超えたら即座に発話として検出
+    const isAboveThreshold = energy > this.config.energyThreshold;
 
     // Update state counters
-    this.updateStateCounters(isActive);
+    this.updateStateCounters(isAboveThreshold);
 
     // Calculate confidence
-    const confidence = this.calculateConfidence(smoothedEnergy, isActive);
+    const confidence = this.calculateConfidence(energy, isAboveThreshold);
 
     // Update state
-    this.state.energy = smoothedEnergy;
+    this.state.energy = energy; // Use raw energy instead of smoothed
     this.state.volume = volume;
+    const previousActive = this.state.isActive;
     this.state.isActive = this.shouldBeActive();
+
+    // Log state transitions for debugging
+    if (previousActive !== this.state.isActive) {
+      console.log(`📊 VAD State Change: ${previousActive ? 'ACTIVE' : 'INACTIVE'} → ${this.state.isActive ? 'ACTIVE' : 'INACTIVE'}`);
+    }
+    
+    // Log energy for debugging (only when above threshold)
+    if (isAboveThreshold && this.state.consecutiveSpeech <= this.config.updateInterval) {
+      console.log(`🎤 Energy spike: ${energy.toFixed(1)} (threshold: ${this.config.energyThreshold})`);
+    }
 
     // Create result
     const result: VADResult = {
@@ -227,6 +238,7 @@ export class ClientVoiceActivityDetector {
    */
   private calculateEnergy(dataArray: Uint8Array): number {
     let sum = 0;
+    let maxValue = 0;
     
     // Focus on speech frequency range (80Hz - 3000Hz)
     // FFT bins represent frequency ranges, calculate relevant bins
@@ -236,12 +248,18 @@ export class ClientVoiceActivityDetector {
     const endBin = Math.floor(3000 / binSize);
 
     for (let i = startBin; i < Math.min(endBin, dataArray.length); i++) {
-      sum += dataArray[i] * dataArray[i];
+      sum += dataArray[i];
+      maxValue = Math.max(maxValue, dataArray[i]);
     }
 
+    // Use average instead of RMS for more sensitive detection
     // Normalize to 0-100 scale
-    const energy = Math.sqrt(sum / (endBin - startBin)) / 255 * 100;
-    return Math.min(100, energy);
+    const avgEnergy = (sum / (endBin - startBin)) / 255 * 100;
+    
+    // Boost the energy value to make it more sensitive
+    const boostedEnergy = avgEnergy * 1.5;
+    
+    return Math.min(100, boostedEnergy);
   }
 
   /**
@@ -271,22 +289,6 @@ export class ClientVoiceActivityDetector {
     }
   }
 
-  /**
-   * Get smoothed energy from history
-   */
-  private getSmoothEnergy(): number {
-    if (this.state.history.length === 0) {
-      return 0;
-    }
-
-    // Use exponential moving average
-    let smoothed = this.state.history[0];
-    for (let i = 1; i < this.state.history.length; i++) {
-      smoothed = smoothed * 0.8 + this.state.history[i] * 0.2;
-    }
-
-    return smoothed;
-  }
 
   /**
    * Update state counters for speech/silence detection
@@ -305,14 +307,26 @@ export class ClientVoiceActivityDetector {
    * Determine if should be considered active based on duration thresholds
    */
   private shouldBeActive(): boolean {
-    // Must have minimum speech duration to be considered active
-    if (this.state.consecutiveSpeech >= this.config.minSpeechDuration) {
+    // 新しく発話が始まった場合（エネルギーが閾値を超えている）
+    if (this.state.consecutiveSpeech > 0 && !this.state.isActive) {
+      console.log(`🎤 Speech started (energy above threshold)`);
       return true;
     }
-
-    // Continue being active until silence threshold is reached
-    if (this.state.isActive && this.state.consecutiveSilence < this.config.silenceDuration) {
-      return true;
+    
+    // 既に発話中の場合
+    if (this.state.isActive) {
+      // 無音が1500ms未満なら発話継続
+      if (this.state.consecutiveSilence < this.config.silenceDuration) {
+        // デバッグ: 無音継続時間をログ出力
+        if (this.state.consecutiveSilence > 0 && this.state.consecutiveSilence % 500 === 0) {
+          console.log(`⏱️ Silence duration: ${this.state.consecutiveSilence}ms / ${this.config.silenceDuration}ms`);
+        }
+        return true;
+      } else {
+        // 1500ms無音が続いたら発話終了
+        console.log(`🔇 Speech ended after ${this.state.consecutiveSilence}ms of silence`);
+        return false;
+      }
     }
 
     return false;
