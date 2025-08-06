@@ -117,13 +117,14 @@ export default function VoiceInterface({
     if (!state.isConnected) return '未接続';
     if (state.isProcessing) return '処理中...';
     if (state.isPlaying) return '音声再生中...';
-    if (state.isRecording && state.vadActive) return '音声検出中...';
+    if (state.isRecording && state.vadActive) return '🎤 話し声を検出中...';
     if (state.isRecording) return '音声待機中...';
     return '準備完了';
   };
 
   const getStatusColor = () => {
     if (state.error) return 'text-red-600';
+    if (state.isRecording && state.vadActive) return 'text-blue-600 font-semibold animate-pulse';
     if (state.isProcessing || state.isConnecting) return 'text-yellow-600';
     if (state.isConnected && state.conversationStarted) return 'text-green-600';
     return 'text-gray-600';
@@ -134,9 +135,17 @@ export default function VoiceInterface({
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+            state.isRecording && state.vadActive 
+              ? 'bg-blue-100 scale-110' 
+              : 'bg-primary-100'
+          }`}>
             <svg
-              className="w-5 h-5 text-primary-600"
+              className={`w-5 h-5 transition-all duration-300 ${
+                state.isRecording && state.vadActive 
+                  ? 'text-blue-600 animate-pulse' 
+                  : 'text-primary-600'
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -368,15 +377,29 @@ export default function VoiceInterface({
                 disabled={state.isProcessing || state.conversationCompleted}
                 className={`flex-1 py-4 px-6 rounded-2xl text-lg font-medium transition-all duration-200 touch-safe ${
                   state.isRecording
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    ? state.vadActive
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg scale-105'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
                     : 'bg-green-600 hover:bg-green-700 text-white'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
               <div className="flex items-center justify-center space-x-2">
                 {state.isRecording ? (
                   <>
-                    <div className="w-4 h-4 bg-white rounded-sm"></div>
-                    <span>録音停止</span>
+                    {state.vadActive ? (
+                      <>
+                        <div className="relative">
+                          <div className="w-4 h-4 bg-white rounded-full animate-ping absolute"></div>
+                          <div className="w-4 h-4 bg-white rounded-full"></div>
+                        </div>
+                        <span>話し声を検出中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-4 h-4 bg-white rounded-sm"></div>
+                        <span>録音停止</span>
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
@@ -419,11 +442,17 @@ export default function VoiceInterface({
         )}
         
         {/* Helper text */}
-        <div className="mt-3 text-center text-xs text-gray-500">
+        <div className={`mt-3 text-center text-xs transition-all duration-300 ${
+          state.isRecording && state.vadActive 
+            ? 'text-blue-600 font-semibold' 
+            : 'text-gray-500'
+        }`}>
           {!state.conversationStarted 
             ? 'マイクへのアクセス許可が必要です' 
             : state.conversationCompleted
             ? '対応完了'
+            : state.isRecording && state.vadActive
+            ? '🔊 音声を検出しています...'
             : state.isRecording
             ? 'お話しください'
             : '録音ボタンを押してください'}

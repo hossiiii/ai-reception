@@ -152,9 +152,9 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     
     // Create VAD
     vad.current = createClientVAD({
-      energyThreshold: options.vadConfig?.energyThreshold || 30,
-      silenceDuration: options.vadConfig?.silenceDuration || 1000,
-      minSpeechDuration: options.vadConfig?.minSpeechDuration || 300
+      energyThreshold: options.vadConfig?.energyThreshold || 30,  // エネルギー閾値30
+      silenceDuration: options.vadConfig?.silenceDuration || 1500,  // 無音継続1500ms
+      minSpeechDuration: options.vadConfig?.minSpeechDuration || 100  // 最小発話時間を短縮
     });
     
     return () => {
@@ -195,8 +195,10 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     
     vad.current.addCallback((vadResult: VADResult) => {
       updateState({
+        vadActive: vadResult.isActive,
         vadVolume: vadResult.volume,
-        vadEnergy: vadResult.energy
+        vadEnergy: vadResult.energy,
+        vadConfidence: vadResult.confidence
       });
     });
     
