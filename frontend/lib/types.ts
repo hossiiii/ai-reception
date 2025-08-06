@@ -129,11 +129,6 @@ export interface ConversationDisplayProps {
   visitorInfo?: VisitorInfo;
 }
 
-export interface ReceptionButtonProps {
-  onStartConversation: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-}
 
 // Error Types
 export interface ApiError extends Error {

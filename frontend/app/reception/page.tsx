@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import VoiceInterface from '@/components/VoiceInterface';
-import ReceptionButton from '@/components/ReceptionButton';
 import { apiClient } from '@/lib/api';
 
 export default function ReceptionPage() {
@@ -12,11 +11,39 @@ export default function ReceptionPage() {
   const [isSystemReady, setIsSystemReady] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdownValue, setCountdownValue] = useState(5);
+  const [isGreeting, setIsGreeting] = useState(false);
+  const [greetingCompleted, setGreetingCompleted] = useState(false);
 
-  // Check system health on mount
+  // Check system health and start greeting on mount
   useEffect(() => {
-    checkSystemHealth();
+    checkSystemHealth().then(() => {
+      startGreeting();
+    });
   }, []);
+
+  const startGreeting = async () => {
+    setIsGreeting(true);
+    try {
+      // Start conversation session for greeting
+      const response = await apiClient.startConversation();
+      if (response.success) {
+        setSessionId(response.session_id);
+        // Greeting will be handled by VoiceInterface automatically
+      } else {
+        throw new Error(response.error || '挨拶の開始に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to start greeting:', error);
+      setError(error instanceof Error ? error.message : '挨拶の開始に失敗しました');
+      setIsGreeting(false);
+    }
+  };
+
+  const handleGreetingComplete = () => {
+    console.log('Greeting completed');
+    setIsGreeting(false);
+    setGreetingCompleted(true);
+  };
 
   const checkSystemHealth = async () => {
     try {
@@ -29,35 +56,19 @@ export default function ReceptionPage() {
     }
   };
 
-  const handleStartConversation = async () => {
-    if (!isSystemReady) {
-      setError('システムが利用できません。');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.startConversation();
-      
-      if (response.success) {
-        setSessionId(response.session_id);
-      } else {
-        throw new Error(response.error || '会話の開始に失敗しました');
-      }
-    } catch (error) {
-      console.error('Failed to start conversation:', error);
-      setError(error instanceof Error ? error.message : '会話の開始に失敗しました');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // This function is no longer needed as conversation starts automatically with greeting
 
   const handleConversationEnd = () => {
     // Start countdown instead of immediately resetting
     setShowCountdown(true);
     setCountdownValue(5);
+  };
+
+  const handleRestartGreeting = () => {
+    setGreetingCompleted(false);
+    setSessionId(null);
+    setError(null);
+    startGreeting();
   };
 
   // Countdown effect
@@ -68,11 +79,13 @@ export default function ReceptionPage() {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (showCountdown && countdownValue === 0) {
-      // Reset to welcome screen
+      // Reset to greeting screen
       setShowCountdown(false);
       setSessionId(null);
       setError(null);
       setCountdownValue(5);
+      setGreetingCompleted(false);
+      startGreeting();
     }
     // Add return statement for all code paths
     return undefined;
@@ -84,13 +97,11 @@ export default function ReceptionPage() {
 
   const handleRetry = () => {
     setError(null);
-    if (sessionId) {
-      // Reset conversation
-      setSessionId(null);
-    } else {
-      // Retry system health check
-      checkSystemHealth();
-    }
+    setSessionId(null);
+    setGreetingCompleted(false);
+    checkSystemHealth().then(() => {
+      startGreeting();
+    });
   };
 
   return (
@@ -167,7 +178,7 @@ export default function ReceptionPage() {
                 </button>
               </div>
             </div>
-          ) : sessionId ? (
+          ) : sessionId && (isGreeting || greetingCompleted) ? (
             /* Voice interface or countdown */
             <div className="h-full">
               {showCountdown ? (
@@ -199,74 +210,44 @@ export default function ReceptionPage() {
                   sessionId={sessionId}
                   onConversationEnd={handleConversationEnd}
                   onError={handleError}
+                  isGreeting={isGreeting}
+                  onGreetingComplete={handleGreetingComplete}
                 />
               )}
             </div>
           ) : (
-            /* Welcome screen */
+            /* Loading/Preparing screen */
             <div className="flex items-center justify-center h-full">
               <div className="text-center max-w-2xl">
-                {/* Welcome message */}
-                <div className="mb-12">
-                  <div className="w-32 h-32 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-8">
-                    <svg
-                      className="w-16 h-16 text-primary-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                      />
-                    </svg>
-                  </div>
-                  
-                  <h1 className="text-5xl font-bold text-gray-900 mb-6">
-                    いらっしゃいませ
-                  </h1>
-                  
-                  <p className="text-2xl text-gray-600 mb-8 leading-relaxed">
-                    こちらは音声対話受付システムです。<br />
-                    下のボタンを押して音声受付を開始してください。
-                  </p>
+                <div className="w-32 h-32 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-8">
+                  <svg
+                    className="w-16 h-16 text-primary-600 animate-pulse"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    />
+                  </svg>
                 </div>
-
-                {/* Start button */}
-                <ReceptionButton
-                  onStartConversation={handleStartConversation}
-                  disabled={!isSystemReady}
-                  loading={isLoading}
-                />
-
-                {/* Instructions */}
-                <div className="mt-12 p-6 bg-blue-50 rounded-2xl">
-                  <h3 className="text-lg font-medium text-blue-900 mb-4">
-                    ご利用方法
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
-                        1
-                      </div>
-                      <span>「音声受付開始」ボタンを押す</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
-                        2
-                      </div>
-                      <span>お名前と会社名を音声で話す</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
-                        3
-                      </div>
-                      <span>AIが音声で適切にご案内</span>
-                    </div>
+                
+                <h1 className="text-5xl font-bold text-gray-900 mb-6">
+                  いらっしゃいませ
+                </h1>
+                
+                <p className="text-2xl text-gray-600 mb-8 leading-relaxed">
+                  AI受付システムを準備しています...
+                </p>
+                
+                {!isSystemReady && (
+                  <div className="text-lg text-gray-500 animate-pulse">
+                    システム初期化中
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}

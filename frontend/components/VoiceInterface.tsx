@@ -9,12 +9,16 @@ export interface VoiceInterfaceProps {
   sessionId?: string;
   onConversationEnd?: () => void;
   onError?: (error: string) => void;
+  isGreeting?: boolean;
+  onGreetingComplete?: () => void;
 }
 
 export default function VoiceInterface({
   sessionId: providedSessionId,
   onConversationEnd,
-  onError
+  onError,
+  isGreeting = false,
+  onGreetingComplete
 }: VoiceInterfaceProps) {
   const {
     state,
@@ -25,17 +29,23 @@ export default function VoiceInterface({
     sendTextInput
   } = useVoiceChat({
     sessionId: providedSessionId,
-    autoStart: false
+    autoStart: isGreeting  // Auto-start when in greeting mode
   });
 
   const onErrorRef = useRef(onError);
+  const onGreetingCompleteRef = useRef(onGreetingComplete);
   const [showTextInput, setShowTextInput] = useState(false);
   const [textInputValue, setTextInputValue] = useState('');
+  const [greetingPhaseCompleted, setGreetingPhaseCompleted] = useState(false);
 
-  // Update ref when onError changes
+  // Update refs when props change
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
+  
+  useEffect(() => {
+    onGreetingCompleteRef.current = onGreetingComplete;
+  }, [onGreetingComplete]);
 
   // Handle errors
   useEffect(() => {
@@ -43,6 +53,18 @@ export default function VoiceInterface({
       onErrorRef.current(state.error);
     }
   }, [state.error]);
+
+  // Handle greeting completion
+  useEffect(() => {
+    if (isGreeting && state.conversationStarted && !greetingPhaseCompleted) {
+      // Mark greeting phase as completed when AI starts speaking
+      if (state.isPlaying || messages.length > 0) {
+        console.log('👋 Greeting phase completed');
+        setGreetingPhaseCompleted(true);
+        onGreetingCompleteRef.current?.();
+      }
+    }
+  }, [isGreeting, state.conversationStarted, state.isPlaying, messages.length, greetingPhaseCompleted]);
 
   // Handle conversation end
   useEffect(() => {
@@ -62,8 +84,6 @@ export default function VoiceInterface({
     // Add return statement for all code paths
     return undefined;
   }, [state.conversationCompleted, onConversationEnd]);
-
-  // Use messages directly for SimpleMessageDisplay
 
   const handleStartChat = async () => {
     await startVoiceChat();
@@ -87,6 +107,8 @@ export default function VoiceInterface({
 
   // Check if we should show text input option based on current step
   const shouldShowTextInputOption = () => {
+    // Don't show text input during greeting phase
+    if (isGreeting && !greetingPhaseCompleted) return false;
     // Show text input option during confirmation step (when collecting name/company)
     return state.currentStep === 'collect_all_info' || 
            state.currentStep === 'confirmation_response' ||
@@ -98,6 +120,10 @@ export default function VoiceInterface({
     if (state.isConnecting) return '接続中...';
     if (!state.isConnected) return '未接続';
     if (state.isProcessing) return '処理中...';
+    if (isGreeting && !greetingPhaseCompleted) {
+      if (state.isPlaying) return 'AIが挨拶しています...';
+      return '挨拶を準備中...';
+    }
     if (state.isPlaying) return '音声再生中...';
     if (state.isRecording && state.vadActive) return '音声を検出中...';
     if (state.isRecording) return 'お話しください';
@@ -140,8 +166,8 @@ export default function VoiceInterface({
         <div className="flex-1 flex items-center justify-center p-6">
           <VolumeReactiveMic
             volume={state.vadVolume || 0}
-            isActive={state.vadActive}
-            isRecording={state.isRecording}
+            isActive={state.vadActive && !isGreeting}  // Disable visual feedback during greeting
+            isRecording={state.isRecording && !isGreeting}  // Disable recording visual during greeting
             status={getStatusText()}
             statusColor={getStatusColor()}
           />
@@ -174,8 +200,8 @@ export default function VoiceInterface({
         </div>
       )}
 
-      {/* Text Input Section */}
-      {showTextInput && (
+      {/* Text Input Section - disabled during greeting */}
+      {showTextInput && !isGreeting && (
         <div className="p-4 bg-gray-50 rounded-2xl m-4">
           <div className="text-center">
             <p className="text-sm text-gray-700 mb-4">
@@ -211,7 +237,14 @@ export default function VoiceInterface({
 
       {/* Simple Controls */}
       <div className="p-6 flex-shrink-0">
-        {!state.conversationStarted ? (
+        {isGreeting && !greetingPhaseCompleted ? (
+          /* Greeting mode - no controls */
+          <div className="text-center">
+            <p className="text-gray-600">
+              AIがご挨拶しています。しばらくお待ちください。
+            </p>
+          </div>
+        ) : !state.conversationStarted ? (
           /* Start Voice Chat Button */
           <button
             onClick={handleStartChat}
@@ -225,7 +258,7 @@ export default function VoiceInterface({
             )}
           </button>
         ) : (
-          /* Simple controls */
+          /* Simple controls - only show after greeting is completed */
           <div className="text-center space-y-4">
             {/* Text input option (only when appropriate) */}
             {shouldShowTextInputOption() && !showTextInput && (
