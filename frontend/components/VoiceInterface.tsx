@@ -75,12 +75,8 @@ export default function VoiceInterface({
 
   const handleStartChat = async () => {
     const success = await startVoiceChat();
-    if (success) {
-      // Auto-start recording after connection
-      setTimeout(() => {
-        startRecording();
-      }, 1000);
-    }
+    // VADが自動で音声を検知して録音を開始するため、
+    // 手動での録音開始は不要
   };
 
   const handleEndConversation = () => {
@@ -118,7 +114,8 @@ export default function VoiceInterface({
     if (state.isProcessing) return '処理中...';
     if (state.isPlaying) return '音声再生中...';
     if (state.isRecording && state.vadActive) return '🎤 話し声を検出中...';
-    if (state.isRecording) return '音声待機中...';
+    if (state.isRecording) return '録音中...';
+    if (state.isListening) return '👂 音声待機中（話しかけてください）';
     return '準備完了';
   };
 
@@ -445,6 +442,8 @@ export default function VoiceInterface({
         <div className={`mt-3 text-center text-xs transition-all duration-300 ${
           state.isRecording && state.vadActive 
             ? 'text-blue-600 font-semibold' 
+            : state.isRecording
+            ? 'text-red-600'
             : 'text-gray-500'
         }`}>
           {!state.conversationStarted 
@@ -452,10 +451,10 @@ export default function VoiceInterface({
             : state.conversationCompleted
             ? '対応完了'
             : state.isRecording && state.vadActive
-            ? '🔊 音声を検出しています...'
+            ? '🔊 音声を検出しています（話し終わったら自動送信）'
             : state.isRecording
-            ? 'お話しください'
-            : '録音ボタンを押してください'}
+            ? '🎤 録音中... お話しください'
+            : '接続中...'}
         </div>
       </div>
     </div>

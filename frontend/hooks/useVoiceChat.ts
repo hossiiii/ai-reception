@@ -36,6 +36,7 @@ export interface VoiceState {
   // Recording states
   isRecording: boolean;
   hasPermission: boolean;
+  isListening: boolean; // VADが音声を監視している状態
   
   // Processing states
   isProcessing: boolean;
@@ -109,6 +110,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     isConnecting: false,
     isRecording: false,
     hasPermission: false,
+    isListening: false,
     isProcessing: false,
     isPlaying: false,
     vadActive: false,
@@ -212,6 +214,48 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     }
   }, [updateState]);
   
+  // Start listening for voice (VAD monitoring without recording) - define before startVoiceChat
+  const startListening = useCallback(async (): Promise<boolean> => {
+    if (!wsClient.current?.isConnected()) {
+      updateState({ error: 'Voice chat not ready' });
+      return false;
+    }
+    
+    try {
+      // Get microphone stream for VAD
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: true 
+      });
+      
+      // Initialize and start VAD
+      if (vad.current) {
+        await vad.current.initialize(stream);
+        vad.current.start();
+      }
+      
+      updateState({ isListening: true });
+      console.log('👂 Started listening for voice activity');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Failed to start listening:', error);
+      updateState({ 
+        error: error instanceof Error ? error.message : 'Failed to start listening'
+      });
+      return false;
+    }
+  }, [updateState]);
+  
+  // Stop listening for voice
+  const stopListening = useCallback(() => {
+    if (vad.current) {
+      vad.current.stop();
+    }
+    
+    updateState({ isListening: false });
+    console.log('🔇 Stopped listening for voice activity');
+  }, [updateState]);
+  
   // Start voice chat
   const startVoiceChat = useCallback(async (): Promise<boolean> => {
     try {
@@ -247,6 +291,13 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       
       console.log('✅ Voice chat started successfully');
+      
+      // Start recording immediately after initial greeting
+      setTimeout(() => {
+        console.log('🎤 Starting initial recording after greeting');
+        startRecording();
+      }, 2000); // Wait 2 seconds for greeting to play
+      
       return true;
       
     } catch (error) {
@@ -257,7 +308,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       return false;
     }
-  }, [updateState]);
+  }, [updateState, startListening]);
   
   // Stop voice chat
   const stopVoiceChat = useCallback(() => {
@@ -266,10 +317,8 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       audioRecorder.current.stopRecording();
     }
     
-    // Stop VAD
-    if (vad.current) {
-      vad.current.stop();
-    }
+    // Stop listening
+    stopListening();
     
     // Disconnect WebSocket
     if (wsClient.current) {
@@ -279,11 +328,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     updateState({
       conversationStarted: false,
       isRecording: false,
+      isListening: false,
       vadActive: false
     });
     
     console.log('🔇 Voice chat stopped');
-  }, [state.isRecording, updateState]);
+  }, [state.isRecording, updateState, stopListening]);
   
   // Start recording
   const startRecording = useCallback(async (): Promise<boolean> => {
@@ -384,7 +434,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     updateState({ isProcessing: true });
   }, [updateState, addMessage]);
   
-  // Setup VAD handlers for auto-stop recording
+  // Setup VAD handlers for auto-start and auto-stop recording
   useEffect(() => {
     if (!vad.current) return;
     
@@ -392,27 +442,46 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     let previousActive = false;
     
     const vadCallback = (vadResult: VADResult) => {
-      // Update VAD state
-      updateState({
-        vadActive: vadResult.isActive,
-        vadVolume: vadResult.volume,
-        vadEnergy: vadResult.energy,
-        vadConfidence: vadResult.confidence
-      });
-      
-      // Detect speech end transition (active -> inactive)
-      if (previousActive && !vadResult.isActive) {
-        console.log('🔇 VAD detected speech end - auto-stopping recording');
+      // Always update VAD state
+      setState(prevState => {
+        const newState = {
+          ...prevState,
+          vadActive: vadResult.isActive,
+          vadVolume: vadResult.volume,
+          vadEnergy: vadResult.energy,
+          vadConfidence: vadResult.confidence
+        };
         
-        // Check if we're currently recording
-        if (audioRecorder.current?.getState().isRecording) {
-          // Auto-stop recording and send to server
-          stopRecording();
+        // Get current states from prevState
+        const isListening = prevState.isListening;
+        const isProcessing = prevState.isProcessing;
+        const isRecording = audioRecorder.current?.getState().isRecording;
+        
+        // Detect speech start transition (inactive -> active)
+        // 自動録音開始は無効化（AI応答後に即座に録音を開始するため）
+        /*
+        if (!previousActive && vadResult.isActive && isListening && !isRecording && !isProcessing) {
+          console.log(`🎤 VAD detected speech start - auto-starting recording
+            isListening: ${isListening}, isRecording: ${isRecording}, isProcessing: ${isProcessing}`);
+          
+          // Auto-start recording
+          setTimeout(() => startRecording(), 100);
         }
-      }
-      
-      // Update previous state
-      previousActive = vadResult.isActive;
+        */
+        
+        // Detect speech end transition (active -> inactive)
+        if (previousActive && !vadResult.isActive && isRecording) {
+          console.log('🔇 VAD detected speech end - auto-stopping recording');
+          
+          // Auto-stop recording and send to server
+          setTimeout(() => stopRecording(), 100);
+        }
+        
+        // Update previous state
+        previousActive = vadResult.isActive;
+        
+        return newState;
+      });
     };
     
     vad.current.addCallback(vadCallback);
@@ -423,7 +492,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
         vad.current.removeCallback(vadCallback);
       }
     };
-  }, [updateState, stopRecording]);
+  }, [startRecording, stopRecording]);
   
   // Setup WebSocket message handlers (moved after function definitions)
   useEffect(() => {
@@ -478,7 +547,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
             conversationCompleted: false,
             isProcessing: false
           });
-          playAudioFromBase64(message.audio);
+          // Play audio and start recording after playback
+          playAudioFromBase64(message.audio).then(() => {
+            console.log('🎤 Starting recording after AI response');
+            // Start recording immediately after AI response
+            startRecording();
+          });
         }
       } else {
         // No audio, update state immediately
@@ -489,6 +563,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
           conversationCompleted: message.completed || false,
           isProcessing: false
         });
+        
+        // Start recording if not completed
+        if (!message.completed) {
+          console.log('🎤 Starting recording (no audio response)');
+          startRecording();
+        }
       }
     };
     
