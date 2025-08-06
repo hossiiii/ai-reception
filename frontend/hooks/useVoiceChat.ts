@@ -64,6 +64,7 @@ export interface VoiceState {
 export interface UseVoiceChatOptions {
   sessionId?: string;
   autoStart?: boolean;
+  isGreeting?: boolean;  // When true, don't start recording automatically
   vadConfig?: {
     energyThreshold?: number;
     silenceDuration?: number;
@@ -97,6 +98,9 @@ function generateSessionId(): string {
 export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatReturn {
   // Generate session ID
   const sessionId = useRef(options.sessionId || generateSessionId()).current;
+  
+  // Use ref for isGreeting to allow dynamic updates
+  const isGreetingRef = useRef(options.isGreeting || false);
   
   // Core services
   const audioRecorder = useRef<AudioRecorder | null>(null);
@@ -292,11 +296,15 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       
       console.log('✅ Voice chat started successfully');
       
-      // Start recording immediately after initial greeting
-      setTimeout(() => {
-        console.log('🎤 Starting initial recording after greeting');
-        startRecording();
-      }, 2000); // Wait 2 seconds for greeting to play
+      // Only start recording if not in greeting mode
+      if (!isGreetingRef.current) {
+        setTimeout(() => {
+          console.log('🎤 Starting initial recording after connection');
+          startRecording();
+        }, 2000); // Wait 2 seconds for any initial response
+      } else {
+        console.log('🎭 Greeting mode: recording disabled until greeting completes');
+      }
       
       return true;
       
@@ -308,7 +316,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       return false;
     }
-  }, [updateState, startListening]);
+  }, [updateState, startListening, options.isGreeting]);
   
   // Stop voice chat
   const stopVoiceChat = useCallback(() => {
@@ -545,11 +553,15 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
             conversationCompleted: false,
             isProcessing: false
           });
-          // Play audio and start recording after playback
+          // Play audio and start recording after playback (only if not in greeting mode)
           playAudioFromBase64(message.audio).then(() => {
-            console.log('🎤 Starting recording after AI response');
-            // Start recording immediately after AI response
-            startRecording();
+            if (!isGreetingRef.current) {
+              console.log('🎤 Starting recording after AI response');
+              // Start recording immediately after AI response
+              startRecording();
+            } else {
+              console.log('🎭 Greeting mode: skipping auto-recording after AI response');
+            }
           });
         }
       } else {
@@ -562,10 +574,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
           isProcessing: false
         });
         
-        // Start recording if not completed
-        if (!message.completed) {
+        // Start recording if not completed and not in greeting mode
+        if (!message.completed && !isGreetingRef.current) {
           console.log('🎤 Starting recording (no audio response)');
           startRecording();
+        } else if (isGreetingRef.current) {
+          console.log('🎭 Greeting mode: skipping auto-recording (no audio response)');
         }
       }
     };
@@ -652,6 +666,11 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       }
     };
   }, [addMessage, updateState, playAudioFromBase64]);
+  
+  // Update greeting ref when option changes
+  useEffect(() => {
+    isGreetingRef.current = options.isGreeting || false;
+  }, [options.isGreeting]);
   
   // Auto-start if requested
   useEffect(() => {

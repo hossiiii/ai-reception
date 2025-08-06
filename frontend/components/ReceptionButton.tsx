@@ -1,6 +1,10 @@
 'use client';
 
-import { ReceptionButtonProps } from '@/lib/types';
+interface ReceptionButtonProps {
+  onStartConversation: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
 
 export default function ReceptionButton({
   onStartConversation,

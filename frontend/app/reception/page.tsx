@@ -12,11 +12,18 @@ export default function ReceptionPage() {
   const [isSystemReady, setIsSystemReady] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdownValue, setCountdownValue] = useState(5);
+  const [isGreeting, setIsGreeting] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
 
-  // Check system health on mount
+  // Check system health on mount (don't auto-start greeting)
   useEffect(() => {
     checkSystemHealth();
   }, []);
+
+  const handleGreetingComplete = () => {
+    console.log('Greeting completed');
+    setIsGreeting(false);
+  };
 
   const checkSystemHealth = async () => {
     try {
@@ -35,6 +42,7 @@ export default function ReceptionPage() {
       return;
     }
 
+    setShowWelcome(false);  // Hide welcome screen
     setIsLoading(true);
     setError(null);
 
@@ -43,12 +51,14 @@ export default function ReceptionPage() {
       
       if (response.success) {
         setSessionId(response.session_id);
+        setIsGreeting(true);  // Start greeting mode
       } else {
         throw new Error(response.error || '会話の開始に失敗しました');
       }
     } catch (error) {
       console.error('Failed to start conversation:', error);
       setError(error instanceof Error ? error.message : '会話の開始に失敗しました');
+      setShowWelcome(true);  // Show welcome screen again on error
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +69,7 @@ export default function ReceptionPage() {
     setShowCountdown(true);
     setCountdownValue(5);
   };
+
 
   // Countdown effect
   useEffect(() => {
@@ -73,6 +84,8 @@ export default function ReceptionPage() {
       setSessionId(null);
       setError(null);
       setCountdownValue(5);
+      setShowWelcome(true);
+      setIsGreeting(false);
     }
     // Add return statement for all code paths
     return undefined;
@@ -84,13 +97,10 @@ export default function ReceptionPage() {
 
   const handleRetry = () => {
     setError(null);
-    if (sessionId) {
-      // Reset conversation
-      setSessionId(null);
-    } else {
-      // Retry system health check
-      checkSystemHealth();
-    }
+    setSessionId(null);
+    setIsGreeting(false);
+    setShowWelcome(true);
+    checkSystemHealth();
   };
 
   return (
@@ -167,7 +177,7 @@ export default function ReceptionPage() {
                 </button>
               </div>
             </div>
-          ) : sessionId ? (
+          ) : sessionId && !showWelcome ? (
             /* Voice interface or countdown */
             <div className="h-full">
               {showCountdown ? (
@@ -199,6 +209,8 @@ export default function ReceptionPage() {
                   sessionId={sessionId}
                   onConversationEnd={handleConversationEnd}
                   onError={handleError}
+                  isGreeting={isGreeting}
+                  onGreetingComplete={handleGreetingComplete}
                 />
               )}
             </div>
@@ -251,7 +263,7 @@ export default function ReceptionPage() {
                       <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
                         1
                       </div>
-                      <span>「音声受付開始」ボタンを押す</span>
+                      <span>「受付開始」ボタンを押す</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
