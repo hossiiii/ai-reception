@@ -289,22 +289,6 @@ export class ClientVoiceActivityDetector {
     }
   }
 
-  /**
-   * Get smoothed energy from history
-   */
-  private getSmoothEnergy(): number {
-    if (this.state.history.length === 0) {
-      return 0;
-    }
-
-    // Use exponential moving average
-    let smoothed = this.state.history[0];
-    for (let i = 1; i < this.state.history.length; i++) {
-      smoothed = smoothed * 0.8 + this.state.history[i] * 0.2;
-    }
-
-    return smoothed;
-  }
 
   /**
    * Update state counters for speech/silence detection

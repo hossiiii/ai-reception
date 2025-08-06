@@ -74,7 +74,7 @@ export default function VoiceInterface({
   }));
 
   const handleStartChat = async () => {
-    const success = await startVoiceChat();
+    await startVoiceChat();
     // VADが自動で音声を検知して録音を開始するため、
     // 手動での録音開始は不要
   };

@@ -12,7 +12,7 @@ import { useVoiceChat } from '@/hooks/useVoiceChat';
 
 // Mock the voice chat hook
 jest.mock('@/hooks/useVoiceChat');
-const mockUseVoiceChat = useVoiceChat as jest.MockedFunction<typeof useVoiceChat>;
+const mockUseVoiceChat = jest.mocked(useVoiceChat);
 
 // Mock audio APIs that aren't available in test environment
 Object.defineProperty(window, 'MediaRecorder', {

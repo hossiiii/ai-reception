@@ -453,8 +453,6 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
         };
         
         // Get current states from prevState
-        const isListening = prevState.isListening;
-        const isProcessing = prevState.isProcessing;
         const isRecording = audioRecorder.current?.getState().isRecording;
         
         // Detect speech start transition (inactive -> active)
