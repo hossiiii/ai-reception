@@ -20,23 +20,26 @@ export default function VoiceInterface({
   isGreeting = false,
   onGreetingComplete
 }: VoiceInterfaceProps) {
+  const onErrorRef = useRef(onError);
+  const onGreetingCompleteRef = useRef(onGreetingComplete);
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textInputValue, setTextInputValue] = useState('');
+  const [greetingPhaseCompleted, setGreetingPhaseCompleted] = useState(false);
+  const [effectiveIsGreeting, setEffectiveIsGreeting] = useState(isGreeting);
+
   const {
     state,
     messages,
     startVoiceChat,
     stopVoiceChat,
     resetError,
-    sendTextInput
+    sendTextInput,
+    startRecording
   } = useVoiceChat({
     sessionId: providedSessionId,
-    autoStart: isGreeting  // Auto-start when in greeting mode
+    autoStart: isGreeting,  // Auto-start when in greeting mode
+    isGreeting: effectiveIsGreeting  // Pass effective greeting mode to hook
   });
-
-  const onErrorRef = useRef(onError);
-  const onGreetingCompleteRef = useRef(onGreetingComplete);
-  const [showTextInput, setShowTextInput] = useState(false);
-  const [textInputValue, setTextInputValue] = useState('');
-  const [greetingPhaseCompleted, setGreetingPhaseCompleted] = useState(false);
 
   // Update refs when props change
   useEffect(() => {
@@ -57,14 +60,22 @@ export default function VoiceInterface({
   // Handle greeting completion
   useEffect(() => {
     if (isGreeting && state.conversationStarted && !greetingPhaseCompleted) {
-      // Mark greeting phase as completed when AI starts speaking
-      if (state.isPlaying || messages.length > 0) {
-        console.log('👋 Greeting phase completed');
+      // Mark greeting phase as completed when AI finishes speaking (after first message)
+      if (!state.isPlaying && messages.length > 0 && messages[messages.length - 1]?.speaker === 'ai') {
+        console.log('👋 Greeting phase completed - AI finished speaking');
         setGreetingPhaseCompleted(true);
+        // Switch to normal mode for useVoiceChat
+        setEffectiveIsGreeting(false);
         onGreetingCompleteRef.current?.();
+        
+        // Start recording after greeting is completed
+        setTimeout(() => {
+          console.log('🎤 Starting recording after greeting completion');
+          startRecording();
+        }, 1000); // Small delay to ensure audio playback is fully finished
       }
     }
-  }, [isGreeting, state.conversationStarted, state.isPlaying, messages.length, greetingPhaseCompleted]);
+  }, [isGreeting, state.conversationStarted, state.isPlaying, messages, greetingPhaseCompleted, startRecording]);
 
   // Handle conversation end
   useEffect(() => {
@@ -122,6 +133,7 @@ export default function VoiceInterface({
     if (state.isProcessing) return '処理中...';
     if (isGreeting && !greetingPhaseCompleted) {
       if (state.isPlaying) return 'AIが挨拶しています...';
+      if (state.conversationStarted) return '挨拶を開始します...';
       return '挨拶を準備中...';
     }
     if (state.isPlaying) return '音声再生中...';
@@ -166,8 +178,8 @@ export default function VoiceInterface({
         <div className="flex-1 flex items-center justify-center p-6">
           <VolumeReactiveMic
             volume={state.vadVolume || 0}
-            isActive={state.vadActive && !isGreeting}  // Disable visual feedback during greeting
-            isRecording={state.isRecording && !isGreeting}  // Disable recording visual during greeting
+            isActive={state.vadActive && greetingPhaseCompleted}  // Only show visual feedback after greeting
+            isRecording={state.isRecording && greetingPhaseCompleted}  // Only show recording visual after greeting
             status={getStatusText()}
             statusColor={getStatusColor()}
           />
