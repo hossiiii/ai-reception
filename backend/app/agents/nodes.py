@@ -341,19 +341,12 @@ class ReceptionNodes:
 
                 ai_message = AIMessage(content=ai_response)
 
-                # Determine visitor type from purpose and proceed automatically
+                # Determine visitor type from purpose using AI for better accuracy
                 purpose = visitor_info.get('purpose', '')
-                purpose_lower = purpose.lower()
-
-                if any(word in purpose_lower for word in ["予約", "会議", "打ち合わせ", "アポ", "appointment", "ミーティング"]):
-                    visitor_type = "appointment"
-                elif any(word in purpose_lower for word in ["営業", "商談", "提案", "sales", "セールス"]):
-                    visitor_type = "sales"
-                elif any(word in purpose_lower for word in ["配達", "荷物", "宅配", "delivery", "配送"]):
-                    visitor_type = "delivery"
-                else:
-                    visitor_type = "appointment"  # Default to appointment
-
+                
+                # Use AI to determine visitor type with better context understanding
+                visitor_type = await self._ai_determine_visitor_type(purpose, visitor_info)
+                
                 visitor_info["visitor_type"] = visitor_type
 
                 print(f"🎯 Auto-determined visitor type: {visitor_type} from purpose: {purpose}")
@@ -1061,6 +1054,69 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         else:
             return {"intent": "unclear", "corrected_info": {}}
 
+    async def _ai_determine_visitor_type(self, purpose: str, visitor_info: dict[str, Any]) -> str:
+        """Use AI to determine visitor type from purpose with high accuracy"""
+        
+        try:
+            context = f"""
+訪問者情報:
+- 会社名: {visitor_info.get('company', '')}
+- 名前: {visitor_info.get('name', '')}
+- 訪問目的: {purpose}
+
+この訪問目的と会社名から、訪問タイプを以下の3つから判定してください：
+
+1. "appointment" - 事前予約、会議、打ち合わせ、面談、アポイントメント、ミーティングなど
+2. "sales" - 営業、商談、新規提案、サービス紹介、商品説明、セールスなど
+3. "delivery" - 配達、荷物の受け渡し、郵便物、宅配、配送など
+
+判定のポイント：
+- 会社名も考慮（例：ヤマト運輸、佐川急便、郵便局→delivery）
+- 「お届け」「持参」「配送」などの表現→delivery
+- 「ご紹介」「ご提案」「ご案内」などの表現→sales
+- 「お約束」「予定」「会議」などの表現→appointment
+- 曖昧な表現も文脈から推測
+- 判断できない場合は"appointment"をデフォルトとする
+
+判定結果を1単語で返してください: appointment, sales, または delivery
+"""
+            
+            ai_response = await self.text_service.generate_output(
+                "訪問タイプの判定",
+                context
+            )
+            
+            # Extract visitor type from AI response
+            response_lower = ai_response.lower().strip()
+            
+            if "delivery" in response_lower:
+                return "delivery"
+            elif "sales" in response_lower:
+                return "sales"
+            elif "appointment" in response_lower:
+                return "appointment"
+            else:
+                # If AI response is unclear, fallback to pattern matching
+                return self._fallback_visitor_type_detection(purpose)
+                
+        except Exception as e:
+            print(f"AI visitor type determination error: {e}")
+            # Fallback to pattern matching
+            return self._fallback_visitor_type_detection(purpose)
+    
+    def _fallback_visitor_type_detection(self, purpose: str) -> str:
+        """Fallback pattern matching for visitor type detection"""
+        purpose_lower = purpose.lower()
+        
+        if any(word in purpose_lower for word in ["予約", "会議", "打ち合わせ", "アポ", "appointment", "ミーティング", "面談", "訪問", "お約束"]):
+            return "appointment"
+        elif any(word in purpose_lower for word in ["営業", "商談", "提案", "sales", "セールス", "紹介", "ご案内"]):
+            return "sales"
+        elif any(word in purpose_lower for word in ["配達", "荷物", "宅配", "delivery", "配送", "お届け", "郵便", "宅急便"]):
+            return "delivery"
+        else:
+            return "appointment"  # Default to appointment
+    
     async def _ai_understand_confirmation(self, user_input: str, state: ConversationState) -> str:
         """Use AI to understand user's confirmation intent with conversation context"""
         try:
