@@ -126,6 +126,72 @@ class ReceptionNodes:
             "confidence": new_visitor_info.get("confidence", "low")
         }
 
+        # 🚚 Check for delivery shortcut - AI-powered early detection
+        is_delivery = await self._ai_is_delivery_visitor(last_message.content, merged_visitor_info)
+        
+        if is_delivery:
+            print(f"🚚 Delivery shortcut triggered for: {last_message.content}")
+            
+            # Set minimal required info for delivery
+            delivery_visitor_info = {
+                "company": merged_visitor_info.get("company") or "配送業者",
+                "name": merged_visitor_info.get("name") or "配達員",
+                "purpose": merged_visitor_info.get("purpose") or "配達",
+                "visitor_type": "delivery",
+                "confirmed": True,  # Skip confirmation for delivery
+                "confidence": "high"
+            }
+            
+            # Generate delivery guidance message directly
+            try:
+                delivery_message = await self.text_service.generate_output(
+                    "配達業者への直接案内",
+                    f"""配達業者への案内メッセージを生成してください：
+
+訪問者入力: "{last_message.content}"
+会社名: {delivery_visitor_info.get('company')}
+
+配達業者に対する案内：
+1. 簡潔で迅速な対応
+2. 配達手順の説明
+3. 感謝の表現
+
+自然で丁寧な日本語で、配達業者向けの案内メッセージを生成してください。"""
+                )
+            except Exception as e:
+                print(f"AI delivery message generation error: {e}")
+                delivery_message = f"""{delivery_visitor_info.get('company')}様、お疲れ様です。
+
+配達の件でお越しいただき、ありがとうございます。
+
+・置き配の場合: 玄関前にお荷物をお置きください
+・サインが必要な場合: 奥の呼び鈴を押してお待ちください
+
+配達完了後は、そのままお帰りいただけます。
+ありがとうございました。"""
+            
+            ai_message = AIMessage(content=delivery_message)
+            
+            # Execute delivery-specific guidance immediately
+            updated_state = {
+                **state,
+                "messages": [ai_message],
+                "visitor_info": delivery_visitor_info,
+                "current_step": "guidance"
+            }
+            
+            # Use dedicated delivery guidance node
+            print("🔄 Auto-proceeding to delivery_guidance_node")
+            guidance_result = await self.delivery_guidance_node(updated_state)
+            
+            # Then send Slack notification
+            if guidance_result.get("current_step") == "complete":
+                print("✅ Auto-proceeding to Slack notification for delivery")
+                slack_result = await self.send_slack_node(guidance_result)
+                return slack_result
+            else:
+                return guidance_result
+
         # Check if all required information is present
         missing_info = []
         if not merged_visitor_info.get("company"):
@@ -364,10 +430,10 @@ class ReceptionNodes:
                     # Execute calendar check immediately
                     calendar_result = await self.check_appointment_node(updated_state)
 
-                    # Then proceed to guidance and Slack notification
+                    # Then proceed to appointment-specific guidance and Slack notification
                     if calendar_result.get("current_step") == "guidance":
-                        print("🔄 Auto-proceeding to guidance after calendar check")
-                        guidance_result = await self.guide_visitor_node(calendar_result)
+                        print("🔄 Auto-proceeding to appointment_guidance_node after calendar check")
+                        guidance_result = await self.appointment_guidance_node(calendar_result)
 
                         # Then send Slack notification
                         if guidance_result.get("current_step") == "complete":
@@ -379,7 +445,7 @@ class ReceptionNodes:
                     else:
                         return calendar_result
                 else:
-                    print(f"🔄 Auto-proceeding to guidance for {visitor_type}")
+                    print(f"🔄 Auto-proceeding to {visitor_type}_guidance_node")
                     updated_state = {
                         **state,
                         "messages": [ai_message],
@@ -387,8 +453,11 @@ class ReceptionNodes:
                         "current_step": "guidance"
                     }
 
-                    # Execute guidance immediately for sales/delivery
-                    guidance_result = await self.guide_visitor_node(updated_state)
+                    # Execute visitor-type specific guidance
+                    if visitor_type == "sales":
+                        guidance_result = await self.sales_guidance_node(updated_state)
+                    else:  # delivery (fallback, though should be caught by shortcut)
+                        guidance_result = await self.delivery_guidance_node(updated_state)
 
                     # Then send Slack notification
                     if guidance_result.get("current_step") == "complete":
@@ -762,6 +831,99 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             "current_step": "complete"
         }
 
+    async def delivery_guidance_node(self, state: ConversationState) -> ConversationState:
+        """配達業者専用の案内ノード - シンプルで迅速な対応"""
+        visitor_info = state.get("visitor_info") or {}
+        company = visitor_info.get("company", "配送業者")
+        
+        # 配達業者向けの専用メッセージ
+        delivery_message = f"""{company}様、お疲れ様です。
+
+配達の件でお越しいただき、ありがとうございます。
+
+・置き配の場合: 玄関前にお荷物をお置きください
+・サインが必要な場合: 奥の呼び鈴を押してお待ちください
+
+配達完了後は、そのままお帰りいただけます。
+ありがとうございました。"""
+        
+        ai_message = AIMessage(content=delivery_message)
+        
+        print(f"📦 Delivery guidance completed for: {company}")
+        
+        return {
+            **state,
+            "messages": [ai_message],
+            "current_step": "complete"
+        }
+
+    async def sales_guidance_node(self, state: ConversationState) -> ConversationState:
+        """営業来客専用の案内ノード - 丁寧なお断り"""
+        visitor_info = state.get("visitor_info") or {}
+        company = visitor_info.get("company", "営業会社")
+        name = visitor_info.get("name", "営業担当")
+        
+        # 営業来客向けの専用メッセージ
+        sales_message = f"""{name}様、お疲れ様です。
+
+申し訳ございませんが、弊社では新規のお取引については
+現在お断りさせていただいております。
+
+もしお名刺や資料をお預けいただける場合は、
+こちらにお預けください。
+必要に応じて後日、担当者よりご連絡差し上げます。"""
+        
+        ai_message = AIMessage(content=sales_message)
+        
+        print(f"💼 Sales guidance completed for: {company}")
+        
+        return {
+            **state,
+            "messages": [ai_message],
+            "current_step": "complete"
+        }
+
+    async def appointment_guidance_node(self, state: ConversationState) -> ConversationState:
+        """予約来客専用の案内ノード - カレンダー結果に基づく案内"""
+        visitor_info = state.get("visitor_info") or {}
+        calendar_result = state.get("calendar_result")
+        
+        if not calendar_result:
+            raise ValueError("Calendar check required for appointment guidance")
+        
+        name = visitor_info.get("name", "")
+        company = visitor_info.get("company", "")
+        
+        if calendar_result.get("found"):
+            # 予約あり
+            room_name = calendar_result.get("roomName", "会議室")
+            appointment_message = f"""お疲れ様です。{calendar_result.get('message', '')}
+
+{company}の{name}様、本日はお忙しい中お越しいただき、
+ありがとうございます。
+
+会議室は{room_name}になります。
+どうぞよろしくお願いいたします。"""
+        else:
+            # 予約なし
+            appointment_message = f"""{company}の{name}様、お疲れ様です。
+
+申し訳ございませんが、本日の予約を確認できませんでした。
+
+恐れ入りますが、事前予約制となっております。
+お手数ですが、担当者にご連絡の上、
+改めて予約をお取りください。"""
+        
+        ai_message = AIMessage(content=appointment_message)
+        
+        print(f"📅 Appointment guidance completed for: {company} - Found: {calendar_result.get('found', False)}")
+        
+        return {
+            **state,
+            "messages": [ai_message],
+            "current_step": "complete"
+        }
+
     async def send_slack_node(self, state: ConversationState) -> ConversationState:
         """Send notification to Slack"""
         visitor_info = state["visitor_info"]
@@ -1103,6 +1265,78 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             print(f"AI visitor type determination error: {e}")
             # Fallback to pattern matching
             return self._fallback_visitor_type_detection(purpose)
+    
+    async def _ai_is_delivery_visitor(self, input_text: str, extracted_info: dict[str, Any] = None) -> bool:
+        """Use AI to determine if visitor is a delivery person for early shortcut"""
+        
+        try:
+            company = extracted_info.get("company", "") if extracted_info else ""
+            purpose = extracted_info.get("purpose", "") if extracted_info else ""
+            
+            context = f"""
+ユーザー入力: "{input_text}"
+抽出された情報:
+- 会社名: {company}
+- 訪問目的: {purpose}
+
+この訪問者が配達業者かどうかを判定してください。
+
+配達業者と判定する条件：
+1. 配送会社名が含まれる：
+   - ヤマト運輸、ヤマト、クロネコヤマト
+   - 佐川急便、佐川
+   - 日本郵便、郵便局、郵便
+   - Amazon、アマゾン配送
+   - UPS、DHL、FedEx
+   
+2. 配達の目的や表現：
+   - 「配達」「荷物」「お届け」「宅配」「配送」
+   - 「お荷物です」「宅配便です」「配達物があります」
+   
+3. 会社名のみでも配送業者なら配達と判定：
+   - 「ヤマトです」→ yes
+   - 「佐川です」→ yes
+   - 「郵便局です」→ yes
+
+判定例：
+- 「ヤマトです」→ yes（配送会社）
+- 「佐川急便です」→ yes（配送会社）
+- 「お荷物をお届けに」→ yes（配達目的）
+- 「Amazon delivery」→ yes（配送会社+配達）
+- 「営業で伺いました」→ no（営業目的）
+- 「会議の件で」→ no（会議目的）
+
+上記条件に明確に該当する場合は"yes"、そうでない場合は"no"を返してください。
+配送会社名が含まれている場合は基本的に"yes"と判定してください。
+
+判定結果: yes または no
+"""
+            
+            ai_response = await self.text_service.generate_output(
+                "JSON形式でyesまたはnoを返す",
+                context
+            )
+            
+            response_lower = ai_response.lower().strip()
+            
+            # Look for yes/no in the response more strictly
+            if response_lower.startswith("yes") or '"yes"' in response_lower or "'yes'" in response_lower:
+                result = True
+            elif response_lower.startswith("no") or '"no"' in response_lower or "'no'" in response_lower:
+                result = False
+            else:
+                # If unclear response, use fallback keyword detection
+                input_lower = input_text.lower()
+                delivery_keywords = ["ヤマト", "佐川", "郵便", "amazon", "配達", "荷物", "お届け", "宅配", "delivery"]
+                result = any(keyword in input_lower for keyword in delivery_keywords)
+            print(f"🚚 AI delivery detection: '{input_text[:30]}...' -> {result}")
+            
+            return result
+            
+        except Exception as e:
+            print(f"AI delivery detection error: {e}")
+            # Error時は安全側（通常フロー）に
+            return False
     
     def _fallback_visitor_type_detection(self, purpose: str) -> str:
         """Fallback pattern matching for visitor type detection"""
