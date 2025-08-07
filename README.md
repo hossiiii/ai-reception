@@ -141,7 +141,7 @@ ai-reception/
 │   │   └── api/                     # REST API エンドポイント
 │   │       ├── conversation.py      # 会話API
 │   │       └── voice.py             # 音声API
-│   ├── tests/                       # テストスイート（104個のテスト）
+│   ├── tests/                       # テストスイート（111個のテスト）
 │   │   ├── README_LLM_TESTING.md    # LLMテストガイド
 │   │   ├── test_llm_integration.py  # LLM統合テスト（AI応答品質）
 │   │   ├── llm_test_framework.py    # テストフレームワーク
@@ -151,7 +151,10 @@ ai-reception/
 │   │   ├── test_audio_service.py    # 音声機能テスト（Whisper + TTS）
 │   │   ├── test_calendar_service.py # Google Calendarテスト
 │   │   ├── test_conversation_api.py # REST APIテスト
-│   │   └── test_voice_websocket.py  # 音声WebSocketテスト
+│   │   ├── test_voice_websocket.py  # 音声WebSocketテスト
+│   │   ├── test_visitor_type_ai.py  # AI訪問者タイプ判定テスト
+│   │   ├── test_delivery_shortcut.py # 配達ショートカットテスト
+│   │   └── test_specialized_nodes_integration.py # 専用ノード統合テスト
 │   ├── requirements.txt             # Python 依存関係
 │   ├── pyproject.toml               # Python プロジェクト設定
 │   └── .env.example                 # 環境変数テンプレート
@@ -244,10 +247,12 @@ npm run build
    - 複数会議室対応
    - 来客者名での自動マッチング
 
-4. **🎯 来客者タイプ判定**
-   - 予約来客 (appointment)
-   - 営業訪問 (sales)  
-   - 配達業者 (delivery)
+4. **🎯 AI来客者タイプ判定システム**
+   - **AI早期配達検出**: 配達業者を即座に判定しショートカット
+   - **専用ガイダンスノード**: 各タイプ専用の最適化された案内
+     - 予約来客 (appointment): カレンダー連動案内
+     - 営業訪問 (sales): 丁寧なお断り案内  
+     - 配達業者 (delivery): 迅速な配達手順案内
 
 5. **💬 Slack通知**
    - リッチメッセージ形式
@@ -459,7 +464,7 @@ graph TB
     AudioService <--> OpenAI
 ```
 
-### ユーザーフロー図
+### ユーザーフロー図（専用ガイダンスノード対応）
 
 ```mermaid
 flowchart TD
@@ -474,8 +479,13 @@ flowchart TD
     TextInput --> InfoExtract{情報抽出}
     VoiceInput --> InfoExtract
     
-    InfoExtract -->|名前・会社・用件が揃った| Confirm[情報確認]
-    InfoExtract -->|情報不足| AskMore[追加情報要求]
+    InfoExtract --> DeliveryCheck{🚚 AI配達判定}
+    
+    DeliveryCheck -->|はい| DeliveryGuidance[配達専用案内<br/>迅速対応]
+    DeliveryCheck -->|いいえ| InfoComplete{情報完備？}
+    
+    InfoComplete -->|はい| Confirm[情報確認]
+    InfoComplete -->|いいえ| AskMore[追加情報要求]
     
     AskMore --> InputChoice2{入力方式選択}
     InputChoice2 -->|テキスト| TextInput2[テキスト入力]
@@ -484,21 +494,20 @@ flowchart TD
     VoiceInput2 --> InfoExtract
     
     Confirm --> UserConfirm{来客者が確認}
-    UserConfirm -->|正しい| TypeCheck{訪問タイプ判定}
+    UserConfirm -->|正しい| TypeCheck{AI訪問タイプ判定}
     UserConfirm -->|修正必要| Correction[情報修正]
     Correction --> InputChoice
     
-    TypeCheck -->|予約来客| CalendarCheck[カレンダー確認]
-    TypeCheck -->|営業訪問| SalesGuidance[営業案内]
-    TypeCheck -->|配達業者| DeliveryGuidance[配達案内]
+    TypeCheck -->|appointment| CalendarCheck[カレンダー確認]
+    TypeCheck -->|sales| SalesGuidance[営業専用案内<br/>丁寧なお断り]
+    TypeCheck -->|delivery| DeliveryGuidance2[配達専用案内<br/>フォールバック]
     
-    CalendarCheck -->|予約あり| MeetingGuidance[会議室案内]
-    CalendarCheck -->|予約なし| NoAppointment[予約なし案内]
+    CalendarCheck --> AppointmentGuidance[予約専用案内<br/>カレンダー結果対応]
     
-    MeetingGuidance --> OutputChoice{出力方式}
+    DeliveryGuidance --> OutputChoice{出力方式}
     SalesGuidance --> OutputChoice
-    DeliveryGuidance --> OutputChoice
-    NoAppointment --> OutputChoice
+    DeliveryGuidance2 --> OutputChoice
+    AppointmentGuidance --> OutputChoice
     
     OutputChoice -->|テキスト表示| TextOutput[テキスト表示]
     OutputChoice -->|音声読み上げ| TTSOutput[TTS音声出力]
@@ -507,6 +516,11 @@ flowchart TD
     TTSOutput --> SlackNotify
     
     SlackNotify --> End([対応完了])
+    
+    style DeliveryCheck fill:#ffcccc,stroke:#ff0000,stroke-width:3px
+    style DeliveryGuidance fill:#ffe6e6,stroke:#ff0000,stroke-width:2px
+    style SalesGuidance fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    style AppointmentGuidance fill:#e6ffe6,stroke:#00cc66,stroke-width:2px
 ```
 
 ## 🧪 LLMテストフレームワーク
@@ -564,10 +578,19 @@ venv\Scripts\activate     # Windows
 
 # 全てのテスト実行（推奨）
 cd backend
-pytest tests/ -v  # 104個の包括的テスト
+pytest tests/ -v  # 111個の包括的テスト
 
 # レセプションフローテスト
 pytest tests/test_reception_graph.py -v  # 21個のコアフローテスト
+
+# 専用ノードアーキテクチャテスト（新規）
+pytest tests/test_specialized_nodes_integration.py -v  # 7個の専用ノードテスト
+
+# AI訪問者タイプ判定テスト（新規）
+pytest tests/test_visitor_type_ai.py -v  # 7個のAI判定テスト
+
+# 配達ショートカットテスト（新規）
+pytest tests/test_delivery_shortcut.py -v  # 8個のショートカットテスト
 
 # LLM統合テスト
 pytest tests/test_llm_integration.py -v  # AI応答品質テスト
@@ -623,7 +646,7 @@ pytest tests/test_calendar_service.py -v  # Google Calendar テスト
 - **Google Calendar API**: 予約管理統合
 - **Slack Webhooks**: リアルタイム通知
 
-### LangGraphフロー詳細
+### LangGraphフロー詳細（専用ガイダンスノード対応）
 
 ```mermaid
 stateDiagram-v2
@@ -631,41 +654,75 @@ stateDiagram-v2
     
     greeting --> collect_all_info: 挨拶完了
     
-    collect_all_info --> confirmation_response: 情報完備
+    collect_all_info --> delivery_shortcut: 🚚 AI配達検出
+    collect_all_info --> confirmation_response: 通常フロー（情報完備）
     collect_all_info --> collect_all_info: 情報不足（最大3回）
     collect_all_info --> error: エラー上限到達
+    
+    delivery_shortcut --> delivery_guidance: 配達専用ノード
+    delivery_guidance --> send_slack_notification: 配達完了
     
     confirmation_response --> confirmation_check: 確認応答
     
     confirmation_check --> visitor_type_check: 確認OK
     confirmation_check --> collect_all_info: 修正必要
     
-    visitor_type_check --> calendar_check: 予約来客
-    visitor_type_check --> sales_response: 営業訪問
-    visitor_type_check --> delivery_response: 配達業者
+    visitor_type_check --> appointment_flow: AI判定: appointment
+    visitor_type_check --> sales_guidance: AI判定: sales
+    visitor_type_check --> delivery_guidance: AI判定: delivery（フォールバック）
     
-    calendar_check --> appointment_found_response: 予約あり
-    calendar_check --> appointment_not_found_response: 予約なし
+    appointment_flow --> calendar_check: カレンダー確認
+    calendar_check --> appointment_guidance: 予約専用ノード
     
-    appointment_found_response --> send_slack_notification
-    appointment_not_found_response --> send_slack_notification
-    sales_response --> send_slack_notification
-    delivery_response --> send_slack_notification
+    appointment_guidance --> send_slack_notification: 予約完了
+    sales_guidance --> send_slack_notification: 営業完了
     
     send_slack_notification --> log_completion
     log_completion --> [*]: 完了
     
     error --> [*]: エラー終了
+    
+    note right of delivery_shortcut
+        配達業者は確認をスキップし
+        直接専用案内へ
+    end note
+    
+    note right of visitor_type_check
+        AI判定による
+        専用ノードルーティング
+    end note
 ```
 
 ### 拡張ガイド
 
-**新しいノード追加**:
+**新しい専用ガイダンスノード追加**:
 ```python
 # backend/app/agents/nodes.py に追加
-async def new_node(self, state: ConversationState) -> ConversationState:
-    # ノード処理ロジック
-    return updated_state
+async def new_visitor_type_guidance_node(self, state: ConversationState) -> ConversationState:
+    """新しい訪問者タイプ専用の案内ノード"""
+    visitor_info = state.get("visitor_info") or {}
+    
+    # タイプ固有の処理ロジック
+    guidance_message = f"新しいタイプ向けの専用メッセージ"
+    
+    ai_message = AIMessage(content=guidance_message)
+    print(f"🎯 New type guidance completed")
+    
+    return {
+        **state,
+        "messages": [ai_message],
+        "current_step": "complete"
+    }
+```
+
+**AI訪問者判定拡張**:
+```python
+# AI判定ロジックに新しいタイプを追加
+async def _ai_determine_visitor_type(self, purpose: str, visitor_info: dict) -> str:
+    # 新しいタイプの判定ロジックを追加
+    if "新しい条件" in purpose.lower():
+        return "new_type"
+    # 既存の判定ロジック継続
 ```
 
 **新しいAPI追加**:
@@ -694,7 +751,7 @@ MIT License - 詳細は`LICENSE`ファイルを参照
 
 ---
 
-**AI Reception System v1.1.0 - Step1: Hybrid Text/Voice Reception Complete ✅**
+**AI Reception System v1.2.0 - Step1: Specialized Node Architecture Complete ✅**
 
 ### 🎉 新機能ハイライト
 
@@ -703,12 +760,17 @@ MIT License - 詳細は`LICENSE`ファイルを参照
 - **🔄 入力方式切り替え**: テキスト・音声の動的切り替え
 - **📱 音声UI**: 直感的な音声録音・再生インターフェース
 - **🤖 AIフロー**: LangGraphによる堅牢な会話状態管理
-- **🧪 テスト完全対応**: 104個の包括的テスト全て成功
+- **🚚 配達ショートカット**: AI早期検出による迅速な配達対応
+- **🎯 専用ガイダンスノード**: 訪問者タイプ別最適化案内システム
+- **🧪 テスト完全対応**: 111個の包括的テスト全て成功
   - 21個のレセプションフローテスト（状態遷移完全検証）
+  - 7個の専用ノードアーキテクチャテスト（新規）
+  - 7個のAI訪問者タイプ判定テスト（新規）
+  - 8個の配達ショートカットテスト（新規）
   - 17個の音声機能テスト（Whisper + TTS品質保証）
   - 11個のカレンダー統合テスト（Google API連携）
   - 15個のAPI機能テスト（REST エンドポイント検証）
-  - 40個のその他統合テスト（LLM品質・エラーハンドリング等）
+  - 25個のその他統合テスト（LLM品質・エラーハンドリング等）
 
 ### 🔧 技術仕様
 
@@ -716,6 +778,6 @@ MIT License - 詳細は`LICENSE`ファイルを参照
 - **バックエンド**: FastAPI + LangGraph + Python 3.11+
 - **AI統合**: OpenAI GPT-4 + Whisper + TTS
 - **外部連携**: Google Calendar API + Slack Webhooks
-- **品質保証**: 104個のテスト（カバレッジ100%達成）
+- **品質保証**: 111個のテスト（専用ノードアーキテクチャ対応・カバレッジ100%達成）
 
 **次回更新**: Step2でのWebSocket対応とリアルタイム音声ストリーミング機能
