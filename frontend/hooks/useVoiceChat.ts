@@ -82,6 +82,7 @@ export interface UseVoiceChatReturn {
   stopVoiceChat: () => void;
   startRecording: () => Promise<boolean>;
   stopRecording: () => void;
+  forceStopRecording: () => void;
   playLastResponse: () => void;
   resetError: () => void;
   sendTextInput: (text: string) => void;
@@ -350,6 +351,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       return false;
     }
     
+    // Don't start recording if already recording
+    if (state.isRecording) {
+      console.log('⚠️ Already recording, skipping start');
+      return true;
+    }
+    
     try {
       // Initialize VAD with microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -378,7 +385,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       return false;
     }
-  }, [updateState]);
+  }, [updateState, state.isRecording]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -407,6 +414,20 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     }
     
     console.log('🔇 Recording stopped');
+  }, []);
+
+  // Force stop recording without sending data (for mode switching)
+  const forceStopRecording = useCallback(() => {
+    if (audioRecorder.current) {
+      // Call forceStopRecording method directly
+      audioRecorder.current.forceStopRecording();
+    }
+    
+    if (vad.current) {
+      vad.current.stop();
+    }
+    
+    console.log('🔇 Force stopped recording for mode switch');
   }, []);
   
   // Play last response
@@ -686,6 +707,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     stopVoiceChat,
     startRecording,
     stopRecording,
+    forceStopRecording,
     playLastResponse,
     resetError,
     sendTextInput,
