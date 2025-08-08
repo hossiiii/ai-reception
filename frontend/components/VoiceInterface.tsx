@@ -369,33 +369,47 @@ export default function VoiceInterface({
         ) : (
           /* Simple controls - only show after greeting is completed */
           <div className="text-center space-y-4">
-            {/* Input mode selection with checkboxes */}
+            {/* Input mode selection with button/card UI */}
             {shouldShowTextInputOption() && (
-              <div className="flex justify-center space-x-6 p-4 bg-gray-50 rounded-lg">
-                <label className={`flex items-center cursor-pointer ${isInputDisabled ? 'opacity-50' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={inputMode === 'voice'}
-                    onChange={() => handleInputModeChange('voice')}
-                    disabled={isInputDisabled}
-                    className="mr-2 w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
-                  />
-                  <span className={`font-medium ${inputMode === 'voice' ? 'text-primary-700' : 'text-gray-600'}`}>
-                    音声入力
-                  </span>
-                </label>
-                <label className={`flex items-center cursor-pointer ${isInputDisabled ? 'opacity-50' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={inputMode === 'text'}
-                    onChange={() => handleInputModeChange('text')}
-                    disabled={isInputDisabled}
-                    className="mr-2 w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
-                  />
-                  <span className={`font-medium ${inputMode === 'text' ? 'text-primary-700' : 'text-gray-600'}`}>
-                    テキスト入力
-                  </span>
-                </label>
+              <div className="flex justify-center gap-4 p-2">
+                <button
+                  onClick={() => handleInputModeChange('voice')}
+                  disabled={isInputDisabled}
+                  className={`
+                    flex-1 min-w-0 px-6 py-4 rounded-xl border-2 transition-all duration-200 touch-safe
+                    ${inputMode === 'voice' 
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-md' 
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }
+                    ${isInputDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl">🎤</div>
+                    <div className="font-semibold text-base">音声入力</div>
+                    <div className="text-sm opacity-75">声で話しかける</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleInputModeChange('text')}
+                  disabled={isInputDisabled}
+                  className={`
+                    flex-1 min-w-0 px-6 py-4 rounded-xl border-2 transition-all duration-200 touch-safe
+                    ${inputMode === 'text' 
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-md' 
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }
+                    ${isInputDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl">✏️</div>
+                    <div className="font-semibold text-base">テキスト入力</div>
+                    <div className="text-sm opacity-75">文字で入力する</div>
+                  </div>
+                </button>
               </div>
             )}
             
