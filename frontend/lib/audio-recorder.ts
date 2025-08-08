@@ -204,6 +204,30 @@ export class AudioRecorder {
   }
 
   /**
+   * Force stop recording without returning data (for mode switching)
+   */
+  forceStopRecording(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try {
+        this.mediaRecorder.stop();
+      } catch (error) {
+        console.warn('⚠️ Error stopping MediaRecorder:', error);
+      }
+    }
+    
+    // Clear chunks
+    this.audioChunks = [];
+    
+    // Clean up resources
+    this.cleanup();
+    
+    // Update state
+    this.updateState({ isRecording: false });
+    
+    console.log('🔇 Force stopped recording and cleaned up');
+  }
+
+  /**
    * Get current recording state
    */
   getState(): AudioRecorderState {

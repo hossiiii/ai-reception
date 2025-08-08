@@ -26,6 +26,9 @@ export default function VoiceInterface({
   const [textInputValue, setTextInputValue] = useState('');
   const [greetingPhaseCompleted, setGreetingPhaseCompleted] = useState(false);
   const [effectiveIsGreeting, setEffectiveIsGreeting] = useState(isGreeting);
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [isInputDisabled, setIsInputDisabled] = useState(false);
+  const [userSelectedMode, setUserSelectedMode] = useState(false); // Track if user manually selected mode
 
   const {
     state,
@@ -34,7 +37,8 @@ export default function VoiceInterface({
     stopVoiceChat,
     resetError,
     sendTextInput,
-    startRecording
+    startRecording,
+    forceStopRecording
   } = useVoiceChat({
     sessionId: providedSessionId,
     autoStart: isGreeting,  // Auto-start when in greeting mode
@@ -56,6 +60,57 @@ export default function VoiceInterface({
       onErrorRef.current(state.error);
     }
   }, [state.error]);
+
+  // Monitor AI response completion and handle mode-specific actions
+  useEffect(() => {
+    // Disable input during AI response
+    if (state.isPlaying || state.isProcessing) {
+      setIsInputDisabled(true);
+      setUserSelectedMode(false); // Reset user selection flag during AI response
+    } else if (!state.conversationCompleted) {
+      // Enable input after AI finishes
+      setIsInputDisabled(false);
+      
+      // Only auto-switch to voice if user hasn't manually selected a mode
+      if (!userSelectedMode) {
+        if (inputMode === 'text') {
+          // Auto-switch back to voice mode after AI response (default behavior)
+          setInputMode('voice');
+          setShowTextInput(false);
+          // Start recording after switching to voice mode
+          if (state.conversationStarted && greetingPhaseCompleted) {
+            setTimeout(() => {
+              console.log('🎤 Auto-switching to voice input after AI response');
+              startRecording();
+            }, 500);
+          }
+        } else if (inputMode === 'voice' && state.conversationStarted && greetingPhaseCompleted) {
+          // Resume recording in voice mode
+          setTimeout(() => {
+            console.log('🎤 Resuming voice recording after AI response');
+            startRecording();
+          }, 500);
+        }
+      } else {
+        // User has manually selected mode, maintain their choice
+        if (inputMode === 'voice' && state.conversationStarted && greetingPhaseCompleted) {
+          // Only start recording if in voice mode
+          setTimeout(() => {
+            console.log('🎤 Starting recording in user-selected voice mode');
+            startRecording();
+          }, 500);
+        } else if (inputMode === 'text') {
+          // Make sure recording is stopped in text mode
+          if (state.isRecording) {
+            console.log('🔇 Stopping recording in text mode');
+            forceStopRecording();
+          }
+        }
+      }
+    }
+  }, [state.isPlaying, state.isProcessing, state.conversationCompleted, inputMode, 
+      state.conversationStarted, greetingPhaseCompleted, startRecording, userSelectedMode, 
+      state.isRecording, forceStopRecording]);
 
   // Handle greeting completion
   useEffect(() => {
@@ -112,8 +167,50 @@ export default function VoiceInterface({
     if (textInputValue.trim()) {
       sendTextInput(textInputValue);
       setTextInputValue('');
-      setShowTextInput(false);
+      // Keep text input mode open if user selected it
+      if (!userSelectedMode) {
+        setShowTextInput(false);
+      }
     }
+  };
+
+  const handleInputModeChange = (mode: 'voice' | 'text') => {
+    // Prevent switching during AI response
+    if (isInputDisabled) {
+      console.log('⚠️ Cannot switch input mode while AI is responding');
+      return;
+    }
+
+    // Mark this as a user-initiated mode change
+    setUserSelectedMode(true);
+
+    // Always stop recording first when switching modes
+    if (state.isRecording) {
+      console.log('🔇 Force stopping recording before mode switch');
+      forceStopRecording();
+    }
+
+    // Add a small delay to ensure recording is fully stopped
+    setTimeout(() => {
+      setInputMode(mode);
+      
+      if (mode === 'text') {
+        setShowTextInput(true);
+        // Double-check recording is stopped
+        if (state.isRecording) {
+          forceStopRecording();
+        }
+      } else {
+        setShowTextInput(false);
+        // Start recording when switching to voice mode
+        if (state.conversationStarted && greetingPhaseCompleted) {
+          setTimeout(() => {
+            console.log('🎤 Starting recording after switching to voice mode');
+            startRecording();
+          }, 300);
+        }
+      }
+    }, 100);
   };
 
   // Check if we should show text input option based on current step
@@ -272,16 +369,56 @@ export default function VoiceInterface({
         ) : (
           /* Simple controls - only show after greeting is completed */
           <div className="text-center space-y-4">
-            {/* Text input option (only when appropriate) */}
-            {shouldShowTextInputOption() && !showTextInput && (
-              <button
-                onClick={() => setShowTextInput(true)}
-                className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
-              >
-                テキストで入力する
-              </button>
+            {/* Input mode selection with button/card UI */}
+            {shouldShowTextInputOption() && (
+              <div className="flex justify-center gap-4 p-2">
+                <button
+                  onClick={() => handleInputModeChange('voice')}
+                  disabled={isInputDisabled}
+                  className={`
+                    flex-1 min-w-0 px-6 py-4 rounded-xl border-2 transition-all duration-200 touch-safe
+                    ${inputMode === 'voice' 
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-md' 
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }
+                    ${isInputDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl">🎤</div>
+                    <div className="font-semibold text-base">音声入力</div>
+                    <div className="text-sm opacity-75">声で話しかける</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleInputModeChange('text')}
+                  disabled={isInputDisabled}
+                  className={`
+                    flex-1 min-w-0 px-6 py-4 rounded-xl border-2 transition-all duration-200 touch-safe
+                    ${inputMode === 'text' 
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-md' 
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }
+                    ${isInputDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl">✏️</div>
+                    <div className="font-semibold text-base">テキスト入力</div>
+                    <div className="text-sm opacity-75">文字で入力する</div>
+                  </div>
+                </button>
+              </div>
             )}
             
+            {/* Status message when input is disabled */}
+            {isInputDisabled && (
+              <p className="text-sm text-amber-600 font-medium">
+                AIが応答中です。しばらくお待ちください...
+              </p>
+            )}
             
             {/* End conversation button */}
             <button
