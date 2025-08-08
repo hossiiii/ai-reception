@@ -357,6 +357,12 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       return true;
     }
     
+    // Don't start recording if processing or playing
+    if (state.isProcessing || state.isPlaying) {
+      console.log('⚠️ Cannot start recording while processing or playing audio');
+      return false;
+    }
+    
     try {
       // Initialize VAD with microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -385,11 +391,14 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       return false;
     }
-  }, [updateState, state.isRecording]);
+  }, [updateState, state.isRecording, state.isProcessing, state.isPlaying]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
     if (audioRecorder.current) {
+      // Set processing state immediately to prevent new recordings
+      updateState({ isProcessing: true });
+      
       // Get the complete audio blob
       const audioBlob = audioRecorder.current.stopRecording();
       
@@ -413,8 +422,8 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       vad.current.stop();
     }
     
-    console.log('🔇 Recording stopped');
-  }, []);
+    console.log('🔇 Recording stopped and processing started');
+  }, [updateState]);
 
   // Force stop recording without sending data (for mode switching)
   const forceStopRecording = useCallback(() => {
@@ -483,6 +492,13 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
         
         // Get current states from prevState
         const isRecording = audioRecorder.current?.getState().isRecording;
+        const isProcessing = prevState.isProcessing;
+        const isPlaying = prevState.isPlaying;
+        
+        // Don't process VAD events during processing or playback
+        if (isProcessing || isPlaying) {
+          return newState;
+        }
         
         // Detect speech start transition (inactive -> active)
         // 自動録音開始は無効化（AI応答後に即座に録音を開始するため）
@@ -497,7 +513,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
         */
         
         // Detect speech end transition (active -> inactive)
-        if (previousActive && !vadResult.isActive && isRecording) {
+        if (previousActive && !vadResult.isActive && isRecording && !isProcessing) {
           console.log('🔇 VAD detected speech end - auto-stopping recording');
           
           // Auto-stop recording and send to server
