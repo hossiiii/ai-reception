@@ -134,9 +134,9 @@ export default function VoiceInterface({
 
   // Handle conversation end
   useEffect(() => {
-    if (state.conversationCompleted && onConversationEnd) {
-      console.log('🎬 Conversation completed detected, starting 10 second timer for end transition');
-      // Wait 10 seconds after conversation is completed (audio is already done playing)
+    if (state.conversationCompleted && !state.isPlaying && onConversationEnd) {
+      console.log('🎬 Conversation completed and audio finished, starting 10 second timer for end transition');
+      // Wait 10 seconds after conversation is completed AND audio is done playing
       const timer = setTimeout(() => {
         console.log('🎬 10 second timer completed, calling onConversationEnd');
         onConversationEnd();
@@ -149,7 +149,7 @@ export default function VoiceInterface({
     }
     // Add return statement for all code paths
     return undefined;
-  }, [state.conversationCompleted, onConversationEnd]);
+  }, [state.conversationCompleted, state.isPlaying, onConversationEnd]);
 
   const handleStartChat = async () => {
     await startVoiceChat();
