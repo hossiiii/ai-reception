@@ -3,8 +3,7 @@
  * Combines specialized hooks for connection, recording, playback, conversation, and VAD
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { VoiceMessage as WSVoiceMessage } from '@/lib/websocket';
+import { useState, useRef, useCallback } from 'react';
 import { 
   VoiceError, 
   createConnectionError, 
@@ -20,6 +19,11 @@ import { useVoiceRecording } from './useVoiceRecording';
 import { useVoicePlayback } from './useVoicePlayback';
 import { useConversationFlow, ConversationMessage } from './useConversationFlow';
 import { useVADIntegration } from './useVADIntegration';
+
+// Phase 3: Import effect management hooks
+import { useVoiceMessageHandlers } from './useVoiceMessageHandlers';
+import { useVoiceAutoStart } from './useVoiceAutoStart';
+import { useGreetingMode } from './useGreetingMode';
 
 // Re-export types for backward compatibility
 export type { ConversationMessage } from './useConversationFlow';
@@ -103,11 +107,11 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Generate session ID
   const sessionId = useRef(options.sessionId || generateSessionId()).current;
   
-  // Greeting mode ref for dynamic updates
-  const isGreetingRef = useRef(options.isGreeting || false);
-  
   // Error state (not managed by sub-hooks)
   const [error, setError] = useState<VoiceError | null>(null);
+  
+  // Phase 3: Use greeting mode management hook
+  const { isGreetingRef } = useGreetingMode({ isGreeting: options.isGreeting });
   
   // Initialize specialized hooks
   const connection = useVoiceConnection({ 
@@ -351,147 +355,23 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     });
   }, [connection.client, conversation]);
   
-  // Setup WebSocket message handlers
-  useEffect(() => {
-    if (!connection.client) return;
-    
-    const handleVoiceResponse = async (message: WSVoiceMessage) => {
-      console.log('📥 Received voice response:', message);
-      
-      // Add AI message
-      conversation.addMessage({
-        speaker: 'ai',
-        content: message.text || '',
-        timestamp: new Date().toISOString(),
-        audioData: message.audio
-      });
-      
-      // Update conversation state - ensure processing is false
-      conversation.updateConversationState({
-        currentStep: message.step || 'unknown',
-        visitorInfo: message.visitor_info,
-        calendarResult: message.calendar_result,
-        conversationCompleted: message.completed || false,
-        isProcessing: false
-      });
-      
-      console.log('📥 AI response processed, isProcessing set to false');
-      
-      // Handle audio playback
-      if (message.audio) {
-        try {
-          await playback.playAudioFromBase64(message.audio);
-          
-          // After playback, start recording if not completed and not in greeting mode
-          if (!message.completed && !isGreetingRef.current) {
-            console.log('🎤 Starting recording after AI response');
-            // Add small delay to ensure playback state is fully updated
-            setTimeout(() => {
-              startRecording();
-            }, 200);
-          } else if (message.completed) {
-            console.log('🎬 Conversation completed after final audio playback');
-            // Stop all recording and VAD when conversation is completed
-            if (recording.state.state === 'recording') {
-              recording.forceStopRecording();
-            }
-            vad.stopListening();
-          } else if (isGreetingRef.current) {
-            console.log('🎭 Greeting mode: skipping auto-recording after AI response');
-          }
-        } catch (error) {
-          console.error('❌ Audio playback error:', error);
-        }
-      } else {
-        // No audio, start recording if not completed and not in greeting mode
-        if (!message.completed && !isGreetingRef.current) {
-          console.log('🎤 Starting recording (no audio response)');
-          // Add small delay to ensure state is fully updated
-          setTimeout(() => {
-            startRecording();
-          }, 200);
-        }
-      }
-    };
-    
-    const handleTranscription = (message: WSVoiceMessage) => {
-      console.log('📝 Received transcription:', message);
-      
-      if (message.text) {
-        conversation.addMessage({
-          speaker: 'visitor',
-          content: message.text,
-          timestamp: new Date().toISOString()
-        });
-      }
-    };
-    
-    const handleVadStatus = (message: WSVoiceMessage) => {
-      // Server-side VAD status (currently using client-side VAD)
-      console.log('📊 Server VAD status:', message);
-    };
-    
-    const handleProcessing = (_message: WSVoiceMessage) => {
-      conversation.updateConversationState({ isProcessing: true });
-    };
-    
-    const handleReady = (_message: WSVoiceMessage) => {
-      conversation.updateConversationState({ isProcessing: false });
-    };
-    
-    const handleError = (message: WSVoiceMessage) => {
-      console.error('❌ WebSocket error:', message);
-      setError(createValidationError(message.error || message.message || 'Unknown error'));
-      conversation.updateConversationState({ isProcessing: false });
-    };
-    
-    const handleConversationCompleted = (_message: WSVoiceMessage) => {
-      console.log('✅ Conversation completed');
-      conversation.updateConversationState({
-        conversationCompleted: true,
-        isProcessing: false
-      });
-      
-      // Stop all recording and VAD when conversation is completed
-      if (recording.state.state === 'recording') {
-        recording.forceStopRecording();
-      }
-      vad.stopListening();
-      console.log('🔇 Stopped recording and VAD after conversation completion');
-    };
-    
-    // Register handlers
-    connection.addMessageHandler('voice_response', handleVoiceResponse);
-    connection.addMessageHandler('transcription', handleTranscription);
-    connection.addMessageHandler('vad_status', handleVadStatus);
-    connection.addMessageHandler('processing', handleProcessing);
-    connection.addMessageHandler('ready', handleReady);
-    connection.addMessageHandler('error', handleError);
-    connection.addMessageHandler('conversation_completed', handleConversationCompleted);
-    
-    return () => {
-      // Cleanup handlers
-      connection.removeMessageHandler('voice_response', handleVoiceResponse);
-      connection.removeMessageHandler('transcription', handleTranscription);
-      connection.removeMessageHandler('vad_status', handleVadStatus);
-      connection.removeMessageHandler('processing', handleProcessing);
-      connection.removeMessageHandler('ready', handleReady);
-      connection.removeMessageHandler('error', handleError);
-      connection.removeMessageHandler('conversation_completed', handleConversationCompleted);
-    };
-  }, [connection, conversation, playback, startRecording]);
+  // Phase 3: Use message handlers management hook
+  useVoiceMessageHandlers({
+    connection,
+    recording,
+    playback,
+    conversation,
+    vad,
+    isGreetingRef,
+    startRecording,
+    setError
+  });
   
-  // Update greeting ref when option changes
-  useEffect(() => {
-    isGreetingRef.current = options.isGreeting || false;
-  }, [options.isGreeting]);
-  
-  // Auto-start if requested
-  useEffect(() => {
-    if (options.autoStart) {
-      startVoiceChat();
-    }
-  }, [options.autoStart, startVoiceChat]);
+  // Phase 3: Use auto-start management hook
+  useVoiceAutoStart({
+    autoStart: options.autoStart || false,
+    startVoiceChat
+  });
   
   return {
     state,
