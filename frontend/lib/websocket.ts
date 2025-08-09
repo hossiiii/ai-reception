@@ -85,10 +85,16 @@ export class VoiceWebSocketClient {
       return 'ws://localhost:8000';
     }
     
-    // In production, use the same host with secure WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}`;
+    // In production, use the API URL from environment variables
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl) {
+      // Convert HTTP/HTTPS to WS/WSS protocol
+      return apiUrl.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+    }
+    
+    // Fallback: determine protocol based on current page protocol
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//localhost:8000`;
   }
 
   /**
