@@ -34,7 +34,6 @@ const nextConfig = {
   reactStrictMode: true,
   
   // Build configuration
-  output: 'standalone',
   
   // TypeScript configuration
   typescript: {
