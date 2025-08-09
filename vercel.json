@@ -1,55 +1,5 @@
 {
-  "version": 2,
-  "name": "ai-reception-system",
-  "builds": [
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/next",
-      "config": {
-        "outputDirectory": ".next"
-      }
-    },
-    {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "runtime": "python3.11"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/backend/app/main.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/$1"
-    }
-  ],
-  "env": {
-    "OPENAI_API_KEY": "@openai-api-key",
-    "GOOGLE_SERVICE_ACCOUNT_KEY": "@google-service-account-key",
-    "SLACK_WEBHOOK_URL": "@slack-webhook-url",
-    "MEETING_ROOM_CALENDAR_IDS": "@meeting-room-calendar-ids",
-    "ENVIRONMENT": "production",
-    "DEBUG": "false",
-    "ALLOWED_ORIGINS": "@allowed-origins"
-  },
-  "functions": {
-    "backend/app/main.py": {
-      "maxDuration": 30,
-      "memory": 1024,
-      "runtime": "python3.11"
-    }
-  },
-  "regions": ["nrt1"],
-  "framework": "nextjs",
-  "installCommand": "cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
-  "public": false,
-  "cleanUrls": true,
-  "trailingSlash": false
+  "installCommand": "cd frontend && npm install"
 }
