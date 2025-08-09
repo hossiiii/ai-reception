@@ -34,7 +34,8 @@
     "SLACK_WEBHOOK_URL": "@slack-webhook-url",
     "MEETING_ROOM_CALENDAR_IDS": "@meeting-room-calendar-ids",
     "ENVIRONMENT": "production",
-    "DEBUG": "false"
+    "DEBUG": "false",
+    "ALLOWED_ORIGINS": "@allowed-origins"
   },
   "functions": {
     "backend/app/main.py": {
@@ -43,25 +44,6 @@
       "runtime": "python3.11"
     }
   },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
-        }
-      ]
-    }
-  ],
   "regions": ["nrt1"],
   "framework": "nextjs",
   "installCommand": "cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
