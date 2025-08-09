@@ -6,120 +6,108 @@ interface VolumeReactiveMicProps {
   isRecording: boolean;
   status?: string; // ステータステキスト
   statusColor?: string; // ステータスの色クラス
+  onClick?: () => void; // クリックハンドラー
+  isClickable?: boolean; // クリック可能かどうか
 }
 
-export default function VolumeReactiveMic({ volume, isActive, isRecording, status, statusColor = 'text-gray-500' }: VolumeReactiveMicProps) {
-  // 音量に基づいてサイズと色を計算
+export default function VolumeReactiveMic({ 
+  volume, 
+  isActive, 
+  isRecording, 
+  status, 
+  statusColor = 'text-gray-500',
+  onClick,
+  isClickable = false
+}: VolumeReactiveMicProps) {
+  // 固定サイズに近い設定（ほぼ変化しない）
   const getSize = () => {
-    const baseSize = 120;
-    const sizeIncrease = volume * 20; // 拡大率を半分に
+    const baseSize = 160; // ベースサイズ
+    const sizeIncrease = volume * 5; // 音量による変化を最小限に（最大5px）
     return baseSize + sizeIncrease;
   };
 
-  const getOpacity = () => {
-    return 0.6 + (volume * 0.4);
+  // 背景色で状態を表現
+  const getBgColor = () => {
+    if (!isRecording) return 'bg-gray-100';
+    if (isActive) return 'bg-primary-100'; // 音声認識中は青系
+    return 'bg-gray-100';
   };
 
-  const getColor = () => {
+  // ボーダー色で音声検出を表現
+  const getBorderColor = () => {
+    if (!isRecording) return 'border-gray-300';
+    if (isActive && volume > 0.1) return 'border-primary-500 border-4'; // 音声検出時は太いボーダー
+    if (isRecording) return 'border-primary-300 border-2'; // 待機中は細いボーダー
+    return 'border-gray-300';
+  };
+
+  // アイコンの色
+  const getIconColor = () => {
     if (!isRecording) return 'text-gray-400';
-    if (volume > 0.7) return 'text-red-500';
-    if (volume > 0.4) return 'text-yellow-500';
-    if (volume > 0.1) return 'text-green-500';
-    return 'text-blue-500';
-  };
-
-  const getGlowColor = () => {
-    if (!isActive) return '';
-    if (volume > 0.7) return 'shadow-red-500/50';
-    if (volume > 0.4) return 'shadow-yellow-500/50';
-    if (volume > 0.1) return 'shadow-green-500/50';
-    return 'shadow-blue-500/50';
+    if (isActive && volume > 0.1) return 'text-primary-600'; // 音声検出時は濃い青
+    if (isRecording) return 'text-primary-500'; // 待機中は普通の青
+    return 'text-gray-400';
   };
 
   const size = getSize();
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-4">
-      <div 
-        className={`
-          relative transition-all duration-200 ease-out rounded-full flex items-center justify-center
-          ${isActive ? `shadow-2xl ${getGlowColor()}` : ''}
-        `}
-        style={{
-          width: `${size}px`,
-          height: `${size}px`,
-          opacity: getOpacity()
-        }}
-      >
-        {/* Outer ring for active state */}
-        {isActive && (
-          <div 
-            className={`
-              absolute inset-0 rounded-full border-2 animate-pulse
-              ${getColor().replace('text-', 'border-')}
-            `}
-          />
-        )}
-        
-        {/* Mic icon */}
-        <svg
-          className={`transition-all duration-200 ${getColor()}`}
-          width={size * 0.5}
-          height={size * 0.5}
-          fill="currentColor"
-          viewBox="0 0 24 24"
+    <div className="flex flex-col items-center justify-center space-y-6">
+      <div className="relative">
+        {/* メインの円形背景 */}
+        <div 
+          className={`
+            relative transition-all duration-300 ease-out rounded-full flex items-center justify-center
+            ${getBgColor()} ${getBorderColor()}
+            ${isClickable ? 'cursor-pointer hover:shadow-lg' : ''}
+          `}
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+          }}
+          onClick={isClickable ? onClick : undefined}
         >
-          <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-        </svg>
-
-        {/* Sound waves for active state */}
-        {isActive && volume > 0.1 && (
-          <>
-            <div 
-              className={`
-                absolute rounded-full border-2 border-opacity-30 animate-ping
-                ${getColor().replace('text-', 'border-')}
-              `}
-              style={{
-                width: `${size + 20}px`,
-                height: `${size + 20}px`,
-                animationDuration: '1s'
-              }}
+          {/* 受付開始画面と同じアイコン */}
+          <svg
+            className={`transition-colors duration-300 ${getIconColor()}`}
+            width={size * 0.4}
+            height={size * 0.4}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
             />
-            {volume > 0.3 && (
-              <div 
-                className={`
-                  absolute rounded-full border-2 border-opacity-20 animate-ping
-                  ${getColor().replace('text-', 'border-')}
-                `}
-                style={{
-                  width: `${size + 40}px`,
-                  height: `${size + 40}px`,
-                  animationDuration: '1.5s'
-                }}
-              />
-            )}
-            {volume > 0.5 && (
-              <div 
-                className={`
-                  absolute rounded-full border-2 border-opacity-10 animate-ping
-                  ${getColor().replace('text-', 'border-')}
-                `}
-                style={{
-                  width: `${size + 60}px`,
-                  height: `${size + 60}px`,
-                  animationDuration: '2s'
-                }}
-              />
-            )}
-          </>
+          </svg>
+        </div>
+
+        {/* 音声認識中のアニメーション（パルス効果） */}
+        {isActive && volume > 0.1 && (
+          <div 
+            className="absolute inset-0 rounded-full border-2 border-primary-400 animate-ping opacity-75"
+            style={{
+              animationDuration: '1.5s'
+            }}
+          />
         )}
       </div>
       
       {/* Status label */}
       {status && (
-        <div className={`text-lg font-medium transition-all duration-300 ${statusColor}`}>
-          {status}
+        <div className="text-center">
+          <div className={`text-xl md:text-2xl font-semibold transition-all duration-300 ${statusColor}`}>
+            {status}
+          </div>
+          {/* 補助テキスト */}
+          {isRecording && (
+            <div className="text-sm md:text-base text-gray-500 mt-2">
+              {isActive && volume > 0.1 ? '音声を検出しています...' : 'お話しください'}
+            </div>
+          )}
         </div>
       )}
     </div>
