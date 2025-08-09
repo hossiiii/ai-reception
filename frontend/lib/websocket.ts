@@ -130,7 +130,7 @@ export class VoiceWebSocketClient {
 
         this.ws.onopen = () => {
           clearTimeout(timeout);
-          console.log('✅ WebSocket connected');
+          console.log('✅ WebSocket connected successfully to:', wsUrl);
           this.updateState({ 
             connected: true, 
             connecting: false, 
@@ -157,7 +157,7 @@ export class VoiceWebSocketClient {
 
         this.ws.onerror = (error) => {
           clearTimeout(timeout);
-          console.error('❌ WebSocket error:', error);
+          console.error('❌ WebSocket connection failed to:', wsUrl, error);
           this.updateState({ 
             connected: false, 
             connecting: false, 
