@@ -77,28 +77,17 @@ export default function VoiceInterface({
           // Auto-switch back to voice mode after AI response (default behavior)
           setInputMode('voice');
           setShowTextInput(false);
-          // Start recording after switching to voice mode
-          if (state.conversationStarted && greetingPhaseCompleted) {
-            setTimeout(() => {
-              console.log('🎤 Auto-switching to voice input after AI response');
-              startRecording();
-            }, 500);
-          }
+          // Recording will be started automatically by useVoiceChat hook
+          console.log('🎤 Auto-switched to voice mode, recording managed by useVoiceChat');
         } else if (inputMode === 'voice' && state.conversationStarted && greetingPhaseCompleted) {
-          // Resume recording in voice mode
-          setTimeout(() => {
-            console.log('🎤 Resuming voice recording after AI response');
-            startRecording();
-          }, 500);
+          // Recording will be handled automatically by useVoiceChat hook
+          console.log('🎤 Voice mode active, recording managed by useVoiceChat');
         }
       } else {
         // User has manually selected mode, maintain their choice
         if (inputMode === 'voice' && state.conversationStarted && greetingPhaseCompleted) {
-          // Only start recording if in voice mode
-          setTimeout(() => {
-            console.log('🎤 Starting recording in user-selected voice mode');
-            startRecording();
-          }, 500);
+          // Recording will be handled automatically by useVoiceChat hook
+          console.log('🎤 User-selected voice mode, recording managed by useVoiceChat');
         } else if (inputMode === 'text') {
           // Make sure recording is stopped in text mode
           if (state.isRecording) {

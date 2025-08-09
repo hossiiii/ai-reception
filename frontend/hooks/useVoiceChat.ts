@@ -1,45 +1,53 @@
 /**
- * Voice chat hook for managing voice conversation state
- * Integrates AudioRecorder, WebSocket, VAD, and AudioPlayer
+ * Refactored Voice chat hook - Main integration hook
+ * Combines specialized hooks for connection, recording, playback, conversation, and VAD
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { 
-  AudioRecorder, 
-  AudioPlayer, 
-  createAudioRecorder, 
-  createAudioPlayer 
-} from '@/lib/audio-recorder';
-import { 
-  VoiceWebSocketClient, 
-  VoiceMessage as WSVoiceMessage, 
-  createVoiceWebSocketClient 
-} from '@/lib/websocket';
-import { 
-  ClientVoiceActivityDetector, 
-  VADResult, 
-  createClientVAD 
-} from '@/lib/vad';
+  VoiceError, 
+  createConnectionError, 
+  createValidationError,
+  ConnectionState,
+  RecordingState,
+  PlaybackState
+} from '@/types/voice';
 
-export interface ConversationMessage {
-  speaker: 'visitor' | 'ai';
-  content: string;
-  timestamp: string;
-  audioData?: string; // base64 for AI responses
-}
+// Phase 4: Import Zustand stores (for future use)
+// import { useVoiceStore, useVoiceSelector, useVoiceActions } from '@/stores/useVoiceStore';
+
+// Import specialized hooks
+import { useVoiceConnection } from './useVoiceConnection';
+import { useVoiceRecording } from './useVoiceRecording';
+import { useVoicePlayback } from './useVoicePlayback';
+import { useConversationFlow, ConversationMessage } from './useConversationFlow';
+import { useVADIntegration } from './useVADIntegration';
+
+// Phase 3: Import effect management hooks
+import { useVoiceMessageHandlers } from './useVoiceMessageHandlers';
+import { useVoiceAutoStart } from './useVoiceAutoStart';
+import { useGreetingMode } from './useGreetingMode';
+
+// Re-export types for backward compatibility
+export type { ConversationMessage } from './useConversationFlow';
 
 export interface VoiceState {
-  // Connection states
+  // Connection state
+  connectionState: ConnectionState;
   isConnected: boolean;
   isConnecting: boolean;
   
-  // Recording states
+  // Recording state  
+  recordingState: RecordingState;
   isRecording: boolean;
   hasPermission: boolean;
-  isListening: boolean; // VADが音声を監視している状態
+  isListening: boolean;
   
   // Processing states
   isProcessing: boolean;
+  
+  // Playback state
+  playbackState: PlaybackState;
   isPlaying: boolean;
   
   // VAD states
@@ -53,8 +61,10 @@ export interface VoiceState {
   conversationCompleted: boolean;
   currentStep: string;
   
-  // Error handling
-  error: string | null;
+  // Error handling (typed errors)
+  errors: VoiceError[];
+  hasErrors: boolean;
+  error: string | null; // Backward compatibility
   
   // Visitor information
   visitorInfo?: any;
@@ -64,7 +74,7 @@ export interface VoiceState {
 export interface UseVoiceChatOptions {
   sessionId?: string;
   autoStart?: boolean;
-  isGreeting?: boolean;  // When true, don't start recording automatically
+  isGreeting?: boolean;
   vadConfig?: {
     energyThreshold?: number;
     silenceDuration?: number;
@@ -100,200 +110,125 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Generate session ID
   const sessionId = useRef(options.sessionId || generateSessionId()).current;
   
-  // Use ref for isGreeting to allow dynamic updates
-  const isGreetingRef = useRef(options.isGreeting || false);
+  // Phase 4: Zustand integration temporarily disabled to fix infinite loop
+  // const voiceState = useVoiceSelector.state();
+  // const voiceActions = useVoiceActions();
   
-  // Core services
-  const audioRecorder = useRef<AudioRecorder | null>(null);
-  const audioPlayer = useRef<AudioPlayer | null>(null);
-  const wsClient = useRef<VoiceWebSocketClient | null>(null);
-  const vad = useRef<ClientVoiceActivityDetector | null>(null);
+  // Initialize session ID in store
+  // useEffect(() => {
+  //   voiceActions.setSessionId(sessionId);
+  // }, [sessionId, voiceActions]);
   
-  // State management
-  const [state, setState] = useState<VoiceState>({
-    isConnected: false,
-    isConnecting: false,
-    isRecording: false,
-    hasPermission: false,
-    isListening: false,
-    isProcessing: false,
-    isPlaying: false,
-    vadActive: false,
-    vadEnergy: 0,
-    vadVolume: 0,
-    vadConfidence: 0,
-    conversationStarted: false,
-    conversationCompleted: false,
-    currentStep: 'greeting',
-    error: null
+  // Error state (temporary bridge during migration)
+  const [, setError] = useState<VoiceError | null>(null);
+  
+  // Phase 3: Use greeting mode management hook
+  const { isGreetingRef } = useGreetingMode({ isGreeting: options.isGreeting });
+  
+  // Initialize specialized hooks
+  const connection = useVoiceConnection({ 
+    sessionId,
+    autoConnect: false 
   });
   
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const lastAudioResponse = useRef<string | null>(null);
-  
-  // Update state helper
-  const updateState = useCallback((updates: Partial<VoiceState>) => {
-    setState(prev => ({ ...prev, ...updates }));
-  }, []);
-  
-  // Add message helper
-  const addMessage = useCallback((message: ConversationMessage) => {
-    setMessages(prev => [...prev, message]);
-  }, []);
-  
-  // Initialize services
-  useEffect(() => {
-    console.log(`🎙️ Initializing voice chat for session: ${sessionId}`);
-    
-    // Create audio services
-    audioRecorder.current = createAudioRecorder({
+  const recording = useVoiceRecording(
+    connection.client,
+    {
       sampleRate: 16000,
       channels: 1,
-      chunkSize: 100 // 100ms chunks
-    });
-    
-    audioPlayer.current = createAudioPlayer();
-    
-    // Create WebSocket client
-    wsClient.current = createVoiceWebSocketClient(sessionId);
-    
-    // Create VAD
-    vad.current = createClientVAD({
-      energyThreshold: options.vadConfig?.energyThreshold || 30,  // エネルギー閾値30
-      silenceDuration: options.vadConfig?.silenceDuration || 1500,  // 無音継続1500ms
-      minSpeechDuration: options.vadConfig?.minSpeechDuration || 100  // 最小発話時間を短縮
-    });
-    
-    return () => {
-      // Cleanup on unmount
-      audioRecorder.current?.destroy();
-      audioPlayer.current?.destroy();
-      wsClient.current?.destroy();
-      vad.current?.destroy();
-    };
-  }, [sessionId, options.vadConfig]);
-  
-  // Placeholder for WebSocket handlers - will be moved after function definitions
-  
-  // Setup audio recorder handlers
-  useEffect(() => {
-    if (!audioRecorder.current) return;
-    
-    // Disable chunk-by-chunk sending for now
-    // We'll send the complete audio when recording stops
-    audioRecorder.current.setChunkCallback(async (chunk) => {
-      // Just log chunk info for debugging
-      console.log(`📊 Audio chunk received: ${chunk.size} bytes`);
-    });
-    
-    audioRecorder.current.setStateChangeCallback((recorderState) => {
-      updateState({
-        isRecording: recorderState.isRecording,
-        hasPermission: recorderState.hasPermission,
-        error: recorderState.errorMessage || null
-      });
-    });
-    
-  }, [updateState]);
-  
-  // VAD handlers will be set up after stopRecording is defined
-  
-  // Play audio from base64
-  const playAudioFromBase64 = useCallback(async (base64Audio: string) => {
-    if (!audioPlayer.current || !base64Audio) {
-      console.log('🔊 Audio playback skipped: no player or audio data');
-      return;
+      chunkSize: 100
     }
-    
-    try {
-      console.log('🔊 Starting audio playback...');
-      updateState({ isPlaying: true });
-      await audioPlayer.current.playAudioFromBase64(base64Audio);
-      console.log('🔊 Audio playback completed successfully');
-    } catch (error) {
-      console.error('❌ Audio playback error:', error);
-      updateState({ error: 'Audio playback failed' });
-    } finally {
-      console.log('🔊 Setting isPlaying to false');
-      updateState({ isPlaying: false });
-    }
-  }, [updateState]);
+  );
   
-  // Start listening for voice (VAD monitoring without recording) - define before startVoiceChat
-  const startListening = useCallback(async (): Promise<boolean> => {
-    if (!wsClient.current?.isConnected()) {
-      updateState({ error: 'Voice chat not ready' });
-      return false;
-    }
-    
-    try {
-      // Get microphone stream for VAD
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true 
-      });
-      
-      // Initialize and start VAD
-      if (vad.current) {
-        await vad.current.initialize(stream);
-        vad.current.start();
+  const playback = useVoicePlayback();
+  
+  const conversation = useConversationFlow();
+  
+  const vad = useVADIntegration({
+    vadConfig: options.vadConfig,
+    onSpeechStart: () => {
+      // Auto-start recording is disabled in current implementation
+      // console.log('👂 VAD detected speech start - could auto-start recording');
+    },
+    onSpeechEnd: () => {
+      // Auto-stop recording if currently recording and not processing
+      if (recording.state.state === 'recording' && !conversation.state.isProcessing) {
+        console.log('👂 VAD detected speech end - auto-stopping recording and VAD');
+        setTimeout(() => {
+          recording.stopRecording();
+          // Stop VAD listening after sending audio to prevent continuous detection
+          vad.stopListening();
+        }, 100);
       }
-      
-      updateState({ isListening: true });
-      console.log('👂 Started listening for voice activity');
-      return true;
-      
-    } catch (error) {
-      console.error('❌ Failed to start listening:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to start listening'
-      });
-      return false;
     }
-  }, [updateState]);
+  });
   
-  // Stop listening for voice
-  const stopListening = useCallback(() => {
-    if (vad.current) {
-      vad.current.stop();
-    }
+  // Phase 4: Create combined state from specialized hooks (removing problematic sync effects)
+  const state: VoiceState = {
+    // Connection state
+    connectionState: connection.state.state,
+    isConnected: connection.state.state === 'connected',
+    isConnecting: connection.state.state === 'connecting',
     
-    updateState({ isListening: false });
-    console.log('🔇 Stopped listening for voice activity');
-  }, [updateState]);
+    // Recording state  
+    recordingState: recording.state.state,
+    isRecording: recording.state.state === 'recording',
+    hasPermission: recording.state.hasPermission,
+    isListening: vad.state.isListening,
+    
+    // Processing states
+    isProcessing: conversation.state.isProcessing,
+    
+    // Playback state
+    playbackState: playback.state.state,
+    isPlaying: playback.state.state === 'playing',
+    
+    // VAD states
+    vadActive: vad.state.isActive,
+    vadEnergy: vad.state.energy,
+    vadVolume: vad.state.volume,
+    vadConfidence: vad.state.confidence,
+    
+    // Conversation states
+    conversationStarted: conversation.state.conversationStarted,
+    conversationCompleted: conversation.state.conversationCompleted,
+    currentStep: conversation.state.currentStep,
+    
+    // Error handling (combined from specialized hooks)
+    errors: [
+      connection.state.error,
+      recording.state.error,
+      playback.state.error
+    ].filter(Boolean) as VoiceError[],
+    hasErrors: !!(connection.state.error || recording.state.error || playback.state.error),
+    error: connection.state.error?.message || recording.state.error?.message || playback.state.error?.message || null,
+    
+    // Visitor information
+    visitorInfo: conversation.state.visitorInfo,
+    calendarResult: conversation.state.calendarResult,
+  };
   
   // Start voice chat
   const startVoiceChat = useCallback(async (): Promise<boolean> => {
     try {
-      updateState({ isConnecting: true, error: null });
+      setError(null);
       
-      // Request microphone permission
-      if (audioRecorder.current) {
-        const hasPermission = await audioRecorder.current.requestPermission();
-        if (!hasPermission) {
-          updateState({ 
-            error: 'Microphone permission is required for voice chat',
-            isConnecting: false
-          });
-          return false;
-        }
+      // Request microphone permission first
+      const hasPermission = await recording.requestPermission();
+      if (!hasPermission) {
+        setError(createValidationError('Microphone permission is required for voice chat'));
+        return false;
       }
       
       // Connect WebSocket
-      if (wsClient.current) {
-        const connected = await wsClient.current.connect();
-        if (!connected) {
-          updateState({ 
-            error: 'Failed to connect to voice service',
-            isConnecting: false
-          });
-          return false;
-        }
+      const connected = await connection.connect();
+      if (!connected) {
+        setError(createConnectionError('Failed to connect to voice service'));
+        return false;
       }
       
-      updateState({ 
-        conversationStarted: true,
-        isConnecting: false
-      });
+      // Update conversation state
+      conversation.updateConversationState({ conversationStarted: true });
       
       console.log('✅ Voice chat started successfully');
       
@@ -302,7 +237,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
         setTimeout(() => {
           console.log('🎤 Starting initial recording after connection');
           startRecording();
-        }, 2000); // Wait 2 seconds for any initial response
+        }, 2000);
       } else {
         console.log('🎭 Greeting mode: recording disabled until greeting completes');
       }
@@ -311,414 +246,145 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       
     } catch (error) {
       console.error('❌ Failed to start voice chat:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to start voice chat',
-        isConnecting: false
-      });
+      setError(createValidationError(error instanceof Error ? error.message : 'Failed to start voice chat'));
       return false;
     }
-  }, [updateState, startListening, options.isGreeting]);
+  }, [connection, recording, conversation, isGreetingRef]);
   
   // Stop voice chat
   const stopVoiceChat = useCallback(() => {
-    // Stop recording
-    if (audioRecorder.current && state.isRecording) {
-      audioRecorder.current.stopRecording();
+    // Force stop recording if active
+    if (recording.state.state === 'recording') {
+      recording.forceStopRecording();
     }
     
-    // Stop listening
-    stopListening();
+    // Stop VAD listening
+    vad.stopListening();
     
     // Disconnect WebSocket
-    if (wsClient.current) {
-      wsClient.current.disconnect();
-    }
+    connection.disconnect();
     
-    updateState({
-      conversationStarted: false,
-      isRecording: false,
-      isListening: false,
-      vadActive: false
+    // Reset conversation state
+    conversation.updateConversationState({
+      conversationStarted: false
     });
     
     console.log('🔇 Voice chat stopped');
-  }, [state.isRecording, updateState, stopListening]);
+  }, [recording, vad, connection, conversation]);
   
-  // Start recording
+  // Start recording with VAD integration
   const startRecording = useCallback(async (): Promise<boolean> => {
-    if (!audioRecorder.current || !wsClient.current?.isConnected()) {
-      updateState({ error: 'Voice chat not ready' });
+    console.log(`🎤 startRecording called - isProcessing: ${conversation.state.isProcessing}, isPlaying: ${playback.state.state === 'playing'}`);
+    
+    // Don't start recording if playing audio
+    if (playback.state.state === 'playing') {
+      console.log(`⚠️ Cannot start recording - audio is playing`);
       return false;
     }
     
-    // Don't start recording if already recording
-    if (state.isRecording) {
-      console.log('⚠️ Already recording, skipping start');
+    // If processing is stuck, reset it for recording restart
+    if (conversation.state.isProcessing) {
+      console.log('⚠️ Processing state stuck, resetting for recording restart');
+      conversation.updateConversationState({ isProcessing: false });
+    }
+    
+    // Don't start recording if conversation is already completed
+    if (conversation.state.conversationCompleted) {
+      console.log('⚠️ Cannot start recording - conversation already completed');
+      return false;
+    }
+    
+    // Start VAD listening first
+    const vadStarted = await vad.startListening();
+    if (!vadStarted) {
+      console.log('⚠️ Failed to start VAD listening');
+      return false;
+    }
+    
+    // Final check before starting recording
+    if (conversation.state.isProcessing) {
+      console.log('⚠️ Processing state still true, forcing reset');
+      conversation.updateConversationState({ isProcessing: false });
+    }
+    
+    // Start recording
+    const started = await recording.startRecording();
+    if (started) {
+      console.log('🎤 Recording started with VAD integration');
       return true;
     }
     
-    // Don't start recording if processing or playing
-    if (state.isProcessing || state.isPlaying) {
-      console.log('⚠️ Cannot start recording while processing or playing audio');
-      return false;
-    }
-    
-    try {
-      // Initialize VAD with microphone stream
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true 
-      });
-      
-      if (vad.current) {
-        await vad.current.initialize(stream);
-        vad.current.start();
-      }
-      
-      // Start recording
-      const started = await audioRecorder.current.startRecording();
-      if (started) {
-        console.log('🎤 Recording started');
-        return true;
-      }
-      
-      updateState({ error: 'Failed to start recording' });
-      return false;
-      
-    } catch (error) {
-      console.error('❌ Failed to start recording:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to start recording'
-      });
-      return false;
-    }
-  }, [updateState, state.isRecording, state.isProcessing, state.isPlaying]);
+    // If recording failed, stop VAD
+    vad.stopListening();
+    return false;
+  }, [recording, vad, conversation.state.isProcessing, playback.state.state]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
-    if (audioRecorder.current) {
-      // Set processing state immediately to prevent new recordings
-      updateState({ isProcessing: true });
-      
-      // Get the complete audio blob
-      const audioBlob = audioRecorder.current.stopRecording();
-      
-      // Send the complete audio file if available
-      if (audioBlob && wsClient.current?.isConnected()) {
-        // Send complete audio file as end_speech command with data
-        wsClient.current.sendCommand('end_speech_with_audio', {
-          audio_size: audioBlob.size,
-          mime_type: audioBlob.type
-        });
-        
-        // Send the audio blob
-        wsClient.current.sendAudioData(audioBlob);
-      } else {
-        // Fallback to simple end_speech command
-        wsClient.current?.sendCommand('end_speech');
-      }
-    }
+    // Set processing state immediately to prevent new recordings
+    conversation.updateConversationState({ isProcessing: true });
     
-    if (vad.current) {
-      vad.current.stop();
-    }
+    // Stop recording and send data
+    recording.stopRecording();
+    
+    // Stop VAD
+    vad.stopListening();
     
     console.log('🔇 Recording stopped and processing started');
-  }, [updateState]);
-
-  // Force stop recording without sending data (for mode switching)
+  }, [recording, vad, conversation]);
+  
+  // Force stop recording
   const forceStopRecording = useCallback(() => {
-    if (audioRecorder.current) {
-      // Call forceStopRecording method directly
-      audioRecorder.current.forceStopRecording();
-    }
-    
-    if (vad.current) {
-      vad.current.stop();
-    }
-    
-    console.log('🔇 Force stopped recording for mode switch');
-  }, []);
+    recording.forceStopRecording();
+    vad.stopListening();
+    console.log('🔇 Force stopped recording');
+  }, [recording, vad]);
   
   // Play last response
   const playLastResponse = useCallback(() => {
-    if (lastAudioResponse.current) {
-      playAudioFromBase64(lastAudioResponse.current);
-    }
-  }, [playAudioFromBase64]);
+    playback.playLastResponse();
+  }, [playback]);
   
   // Reset error
   const resetError = useCallback(() => {
-    updateState({ error: null });
-  }, [updateState]);
+    setError(null);
+  }, []);
   
   // Send text input
   const sendTextInput = useCallback((text: string) => {
-    if (!wsClient.current?.isConnected() || !text.trim()) {
-      updateState({ error: 'Cannot send text: not connected or empty input' });
+    if (!connection.client?.isConnected()) {
+      setError(createValidationError('Cannot send text: not connected'));
       return;
     }
     
-    // Send text input command
-    wsClient.current.sendCommand('text_input', { text: text.trim() });
-    
-    // Add visitor message
-    addMessage({
-      speaker: 'visitor',
-      content: text.trim(),
-      timestamp: new Date().toISOString()
+    // Use conversation hook to add message and set processing
+    conversation.sendTextInput(text, (trimmedText) => {
+      // Send to WebSocket
+      connection.client?.sendCommand('text_input', { text: trimmedText });
     });
-    
-    // Set processing state
-    updateState({ isProcessing: true });
-  }, [updateState, addMessage]);
+  }, [connection.client, conversation]);
   
-  // Setup VAD handlers for auto-start and auto-stop recording
-  useEffect(() => {
-    if (!vad.current) return;
-    
-    // Track previous VAD state for detecting transitions
-    let previousActive = false;
-    
-    const vadCallback = (vadResult: VADResult) => {
-      // Always update VAD state
-      setState(prevState => {
-        const newState = {
-          ...prevState,
-          vadActive: vadResult.isActive,
-          vadVolume: vadResult.volume,
-          vadEnergy: vadResult.energy,
-          vadConfidence: vadResult.confidence
-        };
-        
-        // Get current states from prevState
-        const isRecording = audioRecorder.current?.getState().isRecording;
-        const isProcessing = prevState.isProcessing;
-        const isPlaying = prevState.isPlaying;
-        
-        // Don't process VAD events during processing or playback
-        if (isProcessing || isPlaying) {
-          return newState;
-        }
-        
-        // Detect speech start transition (inactive -> active)
-        // 自動録音開始は無効化（AI応答後に即座に録音を開始するため）
-        /*
-        if (!previousActive && vadResult.isActive && isListening && !isRecording && !isProcessing) {
-          console.log(`🎤 VAD detected speech start - auto-starting recording
-            isListening: ${isListening}, isRecording: ${isRecording}, isProcessing: ${isProcessing}`);
-          
-          // Auto-start recording
-          setTimeout(() => startRecording(), 100);
-        }
-        */
-        
-        // Detect speech end transition (active -> inactive)
-        if (previousActive && !vadResult.isActive && isRecording && !isProcessing) {
-          console.log('🔇 VAD detected speech end - auto-stopping recording');
-          
-          // Auto-stop recording and send to server
-          setTimeout(() => stopRecording(), 100);
-        }
-        
-        // Update previous state
-        previousActive = vadResult.isActive;
-        
-        return newState;
-      });
-    };
-    
-    vad.current.addCallback(vadCallback);
-    
-    // Cleanup
-    return () => {
-      if (vad.current) {
-        vad.current.removeCallback(vadCallback);
-      }
-    };
-  }, [startRecording, stopRecording]);
+  // Phase 3: Use message handlers management hook
+  useVoiceMessageHandlers({
+    connection,
+    recording,
+    playback,
+    conversation,
+    vad,
+    isGreetingRef,
+    startRecording,
+    setError
+  });
   
-  // Setup WebSocket message handlers (moved after function definitions)
-  useEffect(() => {
-    if (!wsClient.current) return;
-    
-    const handleVoiceResponse = (message: WSVoiceMessage) => {
-      console.log('📥 Received voice response:', message);
-      
-      // Add AI message
-      addMessage({
-        speaker: 'ai',
-        content: message.text || '',
-        timestamp: new Date().toISOString(),
-        audioData: message.audio
-      });
-      
-      // Store audio for playback
-      if (message.audio) {
-        lastAudioResponse.current = message.audio;
-        
-        // Auto-play response and update completion status after playback
-        if (message.completed) {
-          // If this is the final message, wait for audio to finish
-          console.log('🎬 Starting final audio playback...');
-          playAudioFromBase64(message.audio).then(() => {
-            console.log('🎬 Final audio playback completed, setting conversationCompleted to true');
-            // Update conversation state after audio finishes
-            updateState({
-              currentStep: message.step || 'unknown',
-              visitorInfo: message.visitor_info,
-              calendarResult: message.calendar_result,
-              conversationCompleted: true,
-              isProcessing: false
-            });
-          }).catch((error) => {
-            console.error('❌ Error during final audio playback:', error);
-            // Still set completion even if audio fails
-            updateState({
-              currentStep: message.step || 'unknown',
-              visitorInfo: message.visitor_info,
-              calendarResult: message.calendar_result,
-              conversationCompleted: true,
-              isProcessing: false
-            });
-          });
-        } else {
-          // For non-final messages, update state immediately
-          updateState({
-            currentStep: message.step || 'unknown',
-            visitorInfo: message.visitor_info,
-            calendarResult: message.calendar_result,
-            conversationCompleted: false,
-            isProcessing: false
-          });
-          // Play audio and start recording after playback (only if not in greeting mode)
-          playAudioFromBase64(message.audio).then(() => {
-            if (!isGreetingRef.current) {
-              console.log('🎤 Starting recording after AI response');
-              // Start recording immediately after AI response
-              startRecording();
-            } else {
-              console.log('🎭 Greeting mode: skipping auto-recording after AI response');
-            }
-          });
-        }
-      } else {
-        // No audio, update state immediately
-        updateState({
-          currentStep: message.step || 'unknown',
-          visitorInfo: message.visitor_info,
-          calendarResult: message.calendar_result,
-          conversationCompleted: message.completed || false,
-          isProcessing: false
-        });
-        
-        // Start recording if not completed and not in greeting mode
-        if (!message.completed && !isGreetingRef.current) {
-          console.log('🎤 Starting recording (no audio response)');
-          startRecording();
-        } else if (isGreetingRef.current) {
-          console.log('🎭 Greeting mode: skipping auto-recording (no audio response)');
-        }
-      }
-    };
-    
-    const handleTranscription = (message: WSVoiceMessage) => {
-      console.log('📝 Received transcription:', message);
-      
-      if (message.text) {
-        // Add visitor message
-        addMessage({
-          speaker: 'visitor',
-          content: message.text,
-          timestamp: new Date().toISOString()
-        });
-      }
-    };
-    
-    const handleVadStatus = (message: WSVoiceMessage) => {
-      updateState({
-        vadActive: message.is_speech || false,
-        vadEnergy: message.energy_level || 0,
-        vadConfidence: message.confidence || 0
-      });
-    };
-    
-    const handleProcessing = (_message: WSVoiceMessage) => {
-      updateState({
-        isProcessing: true
-      });
-    };
-    
-    const handleReady = (_message: WSVoiceMessage) => {
-      updateState({
-        isProcessing: false
-      });
-    };
-    
-    const handleError = (message: WSVoiceMessage) => {
-      console.error('❌ WebSocket error:', message);
-      updateState({
-        error: message.error || message.message || 'Unknown error',
-        isProcessing: false
-      });
-    };
-    
-    const handleConversationCompleted = (_message: WSVoiceMessage) => {
-      console.log('✅ Conversation completed');
-      updateState({
-        conversationCompleted: true,
-        isProcessing: false
-      });
-    };
-    
-    // WebSocket state change handler
-    const handleStateChange = (wsState: any) => {
-      updateState({
-        isConnected: wsState.connected,
-        isConnecting: wsState.connecting,
-        error: wsState.error || null
-      });
-    };
-    
-    // Register handlers
-    wsClient.current.addMessageHandler('voice_response', handleVoiceResponse);
-    wsClient.current.addMessageHandler('transcription', handleTranscription);
-    wsClient.current.addMessageHandler('vad_status', handleVadStatus);
-    wsClient.current.addMessageHandler('processing', handleProcessing);
-    wsClient.current.addMessageHandler('ready', handleReady);
-    wsClient.current.addMessageHandler('error', handleError);
-    wsClient.current.addMessageHandler('conversation_completed', handleConversationCompleted);
-    wsClient.current.addStateChangeHandler(handleStateChange);
-    
-    // Cleanup function to remove handlers
-    return () => {
-      if (wsClient.current) {
-        wsClient.current.removeMessageHandler('voice_response', handleVoiceResponse);
-        wsClient.current.removeMessageHandler('transcription', handleTranscription);
-        wsClient.current.removeMessageHandler('vad_status', handleVadStatus);
-        wsClient.current.removeMessageHandler('processing', handleProcessing);
-        wsClient.current.removeMessageHandler('ready', handleReady);
-        wsClient.current.removeMessageHandler('error', handleError);
-        wsClient.current.removeMessageHandler('conversation_completed', handleConversationCompleted);
-        wsClient.current.removeStateChangeHandler(handleStateChange);
-      }
-    };
-  }, [addMessage, updateState, playAudioFromBase64]);
-  
-  // Update greeting ref when option changes
-  useEffect(() => {
-    isGreetingRef.current = options.isGreeting || false;
-  }, [options.isGreeting]);
-  
-  // Auto-start if requested
-  useEffect(() => {
-    if (options.autoStart) {
-      startVoiceChat();
-    }
-  }, [options.autoStart, startVoiceChat]);
+  // Phase 3: Use auto-start management hook
+  useVoiceAutoStart({
+    autoStart: options.autoStart || false,
+    startVoiceChat
+  });
   
   return {
     state,
-    messages,
+    messages: conversation.messages, // Use hook messages directly
     startVoiceChat,
     stopVoiceChat,
     startRecording,
