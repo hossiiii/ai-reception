@@ -27,7 +27,6 @@ export default function ReceptionPage() {
   const setShowWelcome = useReceptionStore(state => state.setShowWelcome);
   const handleGreetingComplete = useReceptionStore(state => state.handleGreetingComplete);
   const resetReception = useReceptionStore(state => state.resetReception);
-  const resetSession = useReceptionStore(state => state.resetSession);
 
   // Check system health on mount (don't auto-start greeting)
   useEffect(() => {
@@ -86,7 +85,7 @@ export default function ReceptionPage() {
   useEffect(() => {
     if (showCountdown && countdownValue > 0) {
       const timer = setTimeout(() => {
-        setCountdownValue(prev => prev - 1);
+        setCountdownValue(countdownValue - 1);
       }, 1000);
       return () => clearTimeout(timer);
     } else if (showCountdown && countdownValue === 0) {

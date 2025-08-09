@@ -96,7 +96,7 @@ const initialState: ReceptionState = {
 
 export const useReceptionStore = create<ReceptionStore>()(
   devtools(
-    (set, get) => ({
+    (set, _get) => ({
       ...initialState,
       
       // Session actions
