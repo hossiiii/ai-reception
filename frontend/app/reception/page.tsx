@@ -104,45 +104,9 @@ export default function ReceptionPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-soft flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                AI音声受付システム
-              </h1>
-            </div>
-            
-            {/* System status */}
-            <div className="flex items-center space-x-2">
-              <div className={isSystemReady ? 'status-online' : 'status-error'}></div>
-              <span className="text-sm text-gray-600">
-                {isSystemReady ? 'システム稼働中' : 'システムエラー'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Main content */}
-      <main className="flex-1 p-4 overflow-hidden">
+      <main className="h-full p-4 overflow-hidden">
         <div className="max-w-4xl mx-auto h-full">
           {error ? (
             /* Error state */
@@ -163,10 +127,10 @@ export default function ReceptionPage() {
                     />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
                   エラーが発生しました
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-xl text-gray-600 mb-8">
                   {error}
                 </p>
                 <button
@@ -185,10 +149,10 @@ export default function ReceptionPage() {
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <div className="mb-8">
-                      <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                      <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
                         ご利用ありがとうございました
                       </h2>
-                      <p className="text-xl text-gray-600 mb-8">
+                      <p className="text-2xl md:text-3xl text-gray-600 mb-10">
                         まもなく受付開始画面に戻ります
                       </p>
                     </div>
@@ -199,7 +163,7 @@ export default function ReceptionPage() {
                       </span>
                     </div>
                     
-                    <div className="text-gray-500">
+                    <div className="text-xl text-gray-500">
                       {countdownValue > 0 ? '受付開始画面に戻るまで' : '画面を切り替えています...'}
                     </div>
                   </div>
@@ -236,11 +200,11 @@ export default function ReceptionPage() {
                     </svg>
                   </div>
                   
-                  <h1 className="text-5xl font-bold text-gray-900 mb-6">
+                  <h1 className="text-6xl md:text-7xl font-bold text-gray-900 mb-8">
                     いらっしゃいませ
                   </h1>
                   
-                  <p className="text-2xl text-gray-600 mb-8 leading-relaxed">
+                  <p className="text-3xl md:text-4xl text-gray-600 mb-12 leading-relaxed">
                     こちらは音声対話受付システムです。<br />
                     下のボタンを押して音声受付を開始してください。
                   </p>
@@ -255,27 +219,27 @@ export default function ReceptionPage() {
 
                 {/* Instructions */}
                 <div className="mt-12 p-6 bg-blue-50 rounded-2xl">
-                  <h3 className="text-lg font-medium text-blue-900 mb-4">
+                  <h3 className="text-xl md:text-2xl font-semibold text-blue-900 mb-6">
                     ご利用方法
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-800">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-base md:text-lg text-blue-800">
+                    <div className="flex items-center space-x-2 md:space-x-3">
+                      <div className="w-6 h-6 md:w-8 md:h-8 bg-blue-200 rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
                         1
                       </div>
-                      <span>「受付開始」ボタンを押す</span>
+                      <span className="font-medium">「受付開始」ボタンを押す</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
+                    <div className="flex items-center space-x-2 md:space-x-3">
+                      <div className="w-6 h-6 md:w-8 md:h-8 bg-blue-200 rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
                         2
                       </div>
-                      <span>お名前と会社名を音声で話す</span>
+                      <span className="font-medium">お名前と会社名を音声で話す</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-xs font-bold">
+                    <div className="flex items-center space-x-2 md:space-x-3">
+                      <div className="w-6 h-6 md:w-8 md:h-8 bg-blue-200 rounded-full flex items-center justify-center text-xs md:text-sm font-bold">
                         3
                       </div>
-                      <span>AIが音声で適切にご案内</span>
+                      <span className="font-medium">AIが音声で適切にご案内</span>
                     </div>
                   </div>
                 </div>
@@ -285,24 +249,6 @@ export default function ReceptionPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-4 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <div>
-              AI Reception System v2.0.0
-            </div>
-            <div className="flex items-center space-x-4">
-              <span>Step2: Voice-enabled Reception</span>
-              {process.env.NODE_ENV === 'development' && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
-                  Development
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

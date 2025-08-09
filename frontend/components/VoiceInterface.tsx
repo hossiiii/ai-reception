@@ -255,10 +255,10 @@ export default function VoiceInterface({
 
       {/* Error display */}
       {state.error && (
-        <div className="p-6 bg-red-50 border border-red-200 rounded-2xl m-4">
+        <div className="p-6 md:p-8 bg-red-50 border border-red-200 rounded-2xl m-4">
           <div className="text-center text-red-800">
-            <div className="text-lg font-medium mb-2">エラーが発生しました</div>
-            <div className="text-sm mb-4">{state.error}</div>
+            <div className="text-xl md:text-2xl font-medium mb-4">エラーが発生しました</div>
+            <div className="text-base md:text-lg mb-6">{state.error}</div>
             <button
               onClick={resetError}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -295,10 +295,10 @@ export default function VoiceInterface({
 
       {/* Completion message */}
       {state.conversationCompleted && (
-        <div className="p-6 bg-green-50 border border-green-200 rounded-2xl m-4 text-center">
+        <div className="p-6 md:p-8 bg-green-50 border border-green-200 rounded-2xl m-4 text-center">
           <div className="text-green-800">
-            <div className="text-lg font-medium mb-2">対応完了</div>
-            <div className="text-sm mb-4">ありがとうございました</div>
+            <div className="text-xl md:text-2xl font-medium mb-4">対応完了</div>
+            <div className="text-base md:text-lg mb-6">ありがとうございました</div>
             <button
               onClick={handleEndConversation}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -311,9 +311,9 @@ export default function VoiceInterface({
 
       {/* Text Input Section - disabled during greeting */}
       {showTextInput && !isGreeting && (
-        <div className="p-4 bg-gray-50 rounded-2xl m-4">
+        <div className="p-4 md:p-6 bg-gray-50 rounded-2xl m-4">
           <div className="text-center">
-            <p className="text-sm text-gray-700 mb-4">
+            <p className="text-base md:text-lg text-gray-700 mb-4">
               テキストで入力してください
             </p>
             <div className="flex space-x-2">
@@ -323,19 +323,19 @@ export default function VoiceInterface({
                 onChange={(e) => setTextInputValue(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleTextInputSubmit()}
                 placeholder="ここに入力してください"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="flex-1 px-4 py-3 md:px-6 md:py-4 text-base md:text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 autoFocus
               />
               <button
                 onClick={handleTextInputSubmit}
                 disabled={!textInputValue.trim() || state.isProcessing}
-                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 md:px-8 md:py-4 text-base md:text-lg bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 送信
               </button>
               <button
                 onClick={() => setShowTextInput(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-4 py-3 md:px-6 md:py-4 text-base md:text-lg text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 ✕
               </button>
@@ -388,7 +388,6 @@ export default function VoiceInterface({
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-2xl">🎤</div>
                     <div className="font-semibold text-base">音声入力</div>
-                    <div className="text-sm opacity-75">声で話しかける</div>
                   </div>
                 </button>
                 <button
@@ -407,7 +406,6 @@ export default function VoiceInterface({
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-2xl">✏️</div>
                     <div className="font-semibold text-base">テキスト入力</div>
-                    <div className="text-sm opacity-75">文字で入力する</div>
                   </div>
                 </button>
               </div>
