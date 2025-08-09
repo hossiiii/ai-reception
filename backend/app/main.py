@@ -83,11 +83,17 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Log CORS configuration
+print(f"🔒 CORS Configuration:")
+print(f"   Environment: {settings.environment}")
+print(f"   Allowed Origins: {settings.cors_origins}")
+print(f"   Allow Credentials: {settings.cors_allow_credentials}")
 
 
 # Global exception handler
