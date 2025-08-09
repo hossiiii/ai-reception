@@ -52,7 +52,7 @@ class ReceptionNodes:
 
         return {
             **state,
-            "messages": [ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "current_step": "collect_all_info",
             "error_count": 0
         }
@@ -78,7 +78,7 @@ class ReceptionNodes:
             
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "current_step": "name_collection",
                 "error_count": state.get("error_count", 0) + 1
             }
@@ -95,7 +95,7 @@ class ReceptionNodes:
 
         return {
             **state,
-            "messages": [HumanMessage(content=last_message.content), ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "visitor_info": visitor_info,
             "current_step": "confirmation",
             "error_count": 0
@@ -175,7 +175,7 @@ class ReceptionNodes:
             # Execute delivery-specific guidance immediately
             updated_state = {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": delivery_visitor_info,
                 "current_step": "guidance"
             }
@@ -268,7 +268,7 @@ class ReceptionNodes:
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": merged_visitor_info,  # Save partial information
                 "current_step": "collect_all_info",
                 "error_count": state.get("error_count", 0) + 1
@@ -314,7 +314,7 @@ class ReceptionNodes:
 
         return {
             **state,
-            "messages": [user_message, ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "visitor_info": merged_visitor_info,
             "current_step": "confirmation_response",
             "error_count": 0
@@ -371,7 +371,7 @@ class ReceptionNodes:
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "current_step": "confirmation_response",
                 "error_count": 0
             }
@@ -422,7 +422,7 @@ class ReceptionNodes:
                     print("🔄 Auto-proceeding to calendar check for appointment")
                     updated_state = {
                         **state,
-                        "messages": [ai_message],
+                        "messages": state.get("messages", []) + [ai_message],
                         "visitor_info": visitor_info,
                         "current_step": "appointment_check"
                     }
@@ -448,7 +448,7 @@ class ReceptionNodes:
                     print(f"🔄 Auto-proceeding to {visitor_type}_guidance_node")
                     updated_state = {
                         **state,
-                        "messages": [ai_message],
+                        "messages": state.get("messages", []) + [ai_message],
                         "visitor_info": visitor_info,
                         "current_step": "guidance"
                     }
@@ -481,7 +481,7 @@ class ReceptionNodes:
 
                 return {
                     **state,
-                    "messages": [ai_message],
+                    "messages": state.get("messages", []) + [ai_message],
                     "visitor_info": visitor_info,
                     "current_step": "process_visitor_type",
                     "error_count": 0
@@ -531,7 +531,7 @@ class ReceptionNodes:
 
                 return {
                     **state,
-                    "messages": [ai_message],
+                    "messages": state.get("messages", []) + [ai_message],
                     "visitor_info": visitor_info,
                     "current_step": "confirmation_response",
                     "error_count": 0
@@ -553,7 +553,7 @@ class ReceptionNodes:
 
                 return {
                     **state,
-                    "messages": [ai_message],
+                    "messages": state.get("messages", []) + [ai_message],
                     "visitor_info": {},  # Clear visitor info for re-collection
                     "current_step": "collect_all_info",
                     "error_count": 0
@@ -580,7 +580,7 @@ class ReceptionNodes:
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "current_step": "confirmation_response",
                 "error_count": state.get("error_count", 0) + 1
             }
@@ -621,7 +621,7 @@ class ReceptionNodes:
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": visitor_info,
                 "current_step": "visitor_type_response"  # Wait for user response
             }
@@ -637,7 +637,7 @@ class ReceptionNodes:
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": visitor_info,
                 "current_step": "visitor_type_response"
             }
@@ -713,7 +713,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                     # For appointments, immediately proceed to calendar check
                     updated_state = {
                         **state,
-                        "messages": [ai_message],
+                        "messages": state.get("messages", []) + [ai_message],
                         "visitor_info": visitor_info,
                         "current_step": "appointment_check"
                     }
@@ -725,7 +725,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                 else:
                     return {
                         **state,
-                        "messages": [ai_message],
+                        "messages": state.get("messages", []) + [ai_message],
                         "visitor_info": visitor_info,
                         "current_step": "guidance"
                     }
@@ -757,7 +757,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             # For appointments, immediately proceed to calendar check
             updated_state = {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": visitor_info,
                 "current_step": "appointment_check"
             }
@@ -769,7 +769,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         else:
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": visitor_info,
                 "current_step": "guidance"
             }
@@ -790,7 +790,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
             return {
                 **state,
-                "messages": [ai_message],
+                "messages": state.get("messages", []) + [ai_message],
                 "calendar_result": calendar_result,
                 "current_step": "guidance"
             }
@@ -809,7 +809,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
             return {
                 **state,
-                "messages": [error_message],
+                "messages": state.get("messages", []) + [error_message],
                 "calendar_result": calendar_result,
                 "current_step": "guidance"
             }
@@ -827,7 +827,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
         return {
             **state,
-            "messages": [ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "current_step": "complete"
         }
 
@@ -853,7 +853,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         
         return {
             **state,
-            "messages": [ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "current_step": "complete"
         }
 
@@ -879,7 +879,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         
         return {
             **state,
-            "messages": [ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "current_step": "complete"
         }
 
@@ -920,7 +920,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         
         return {
             **state,
-            "messages": [ai_message],
+            "messages": state.get("messages", []) + [ai_message],
             "current_step": "complete"
         }
 

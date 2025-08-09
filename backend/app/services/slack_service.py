@@ -167,16 +167,34 @@ class SlackService:
 
         # Add conversation summary if available
         if conversation_logs:
+            # Filter out duplicate messages
+            filtered_logs = []
+            seen_messages = set()
+            
+            for log in conversation_logs:
+                message_content = log['message'][:200].strip()
+                if message_content not in seen_messages:
+                    filtered_logs.append(log)
+                    seen_messages.add(message_content)
+            
+            # Show filtered conversation history
             conversation_text = "\n".join([
-                f"{'👤' if log['speaker'] == 'visitor' else '🤖'} {log['message'][:100]}..."
-                for log in conversation_logs[-3:]  # Last 3 messages
+                f"{'👤' if log['speaker'] == 'visitor' else '🤖'} {log['message'][:200]}"
+                for log in filtered_logs
             ])
+
+            # Split into multiple blocks if conversation is too long
+            if len(conversation_text) > 2000:  # Slack block text limit
+                # Show first part and last part if too long
+                first_part = conversation_text[:900]
+                last_part = conversation_text[-900:]
+                conversation_text = f"{first_part}\n...\n{last_part}"
 
             blocks.append({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*会話履歴:*\n```{conversation_text}```"
+                    "text": f"*会話履歴 ({len(filtered_logs)}メッセージ):*\n```{conversation_text}```"
                 }
             })
 
