@@ -6,9 +6,19 @@ interface VolumeReactiveMicProps {
   isRecording: boolean;
   status?: string; // ステータステキスト
   statusColor?: string; // ステータスの色クラス
+  onClick?: () => void; // クリックハンドラー
+  isClickable?: boolean; // クリック可能かどうか
 }
 
-export default function VolumeReactiveMic({ volume, isActive, isRecording, status, statusColor = 'text-gray-500' }: VolumeReactiveMicProps) {
+export default function VolumeReactiveMic({ 
+  volume, 
+  isActive, 
+  isRecording, 
+  status, 
+  statusColor = 'text-gray-500',
+  onClick,
+  isClickable = false
+}: VolumeReactiveMicProps) {
   // 固定サイズに近い設定（ほぼ変化しない）
   const getSize = () => {
     const baseSize = 160; // ベースサイズ
@@ -49,11 +59,13 @@ export default function VolumeReactiveMic({ volume, isActive, isRecording, statu
           className={`
             relative transition-all duration-300 ease-out rounded-full flex items-center justify-center
             ${getBgColor()} ${getBorderColor()}
+            ${isClickable ? 'cursor-pointer hover:shadow-lg' : ''}
           `}
           style={{
             width: `${size}px`,
             height: `${size}px`,
           }}
+          onClick={isClickable ? onClick : undefined}
         >
           {/* 受付開始画面と同じアイコン */}
           <svg
