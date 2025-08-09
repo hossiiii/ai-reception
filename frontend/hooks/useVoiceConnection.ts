@@ -9,12 +9,11 @@ import {
   VoiceMessage as WSVoiceMessage, 
   createVoiceWebSocketClient 
 } from '@/lib/websocket';
-
-export interface ConnectionState {
-  isConnected: boolean;
-  isConnecting: boolean;
-  error: string | null;
-}
+import { 
+  ConnectionState,
+  ConnectionStateInfo, 
+  createConnectionError 
+} from '@/types/voice';
 
 export interface UseVoiceConnectionOptions {
   sessionId: string;
@@ -23,7 +22,7 @@ export interface UseVoiceConnectionOptions {
 
 export interface UseVoiceConnectionReturn {
   // State
-  state: ConnectionState;
+  state: ConnectionStateInfo;
   
   // Actions
   connect: () => Promise<boolean>;
@@ -46,14 +45,16 @@ export function useVoiceConnection(options: UseVoiceConnectionOptions): UseVoice
   const wsClient = useRef<VoiceWebSocketClient | null>(null);
   
   // Connection state
-  const [state, setState] = useState<ConnectionState>({
-    isConnected: false,
-    isConnecting: false,
-    error: null
+  const [state, setState] = useState<ConnectionStateInfo>({
+    state: 'disconnected',
+    error: null,
+    sessionId,
+    isReconnecting: false,
+    reconnectAttempts: 0
   });
   
   // Update state helper
-  const updateState = useCallback((updates: Partial<ConnectionState>) => {
+  const updateState = useCallback((updates: Partial<ConnectionStateInfo>) => {
     setState(prev => ({ ...prev, ...updates }));
   }, []);
   
@@ -66,10 +67,22 @@ export function useVoiceConnection(options: UseVoiceConnectionOptions): UseVoice
     
     // Setup state change handler
     const handleStateChange = (wsState: any) => {
+      let newState: ConnectionState;
+      if (wsState.connected) {
+        newState = 'connected';
+      } else if (wsState.connecting) {
+        newState = 'connecting';
+      } else if (wsState.error) {
+        newState = 'error';
+      } else {
+        newState = 'disconnected';
+      }
+      
+      const error = wsState.error ? createConnectionError(wsState.error, 'WEBSOCKET_FAILED') : null;
+      
       updateState({
-        isConnected: wsState.connected,
-        isConnecting: wsState.connecting,
-        error: wsState.error || null
+        state: newState,
+        error
       });
     };
     
@@ -88,38 +101,48 @@ export function useVoiceConnection(options: UseVoiceConnectionOptions): UseVoice
   // Connect to WebSocket
   const connect = useCallback(async (): Promise<boolean> => {
     if (!wsClient.current) {
-      updateState({ error: 'WebSocket client not initialized' });
+      const error = createConnectionError('WebSocket client not initialized', 'WEBSOCKET_FAILED');
+      updateState({ error });
       return false;
     }
     
-    if (state.isConnected) {
+    if (state.state === 'connected') {
       console.log('🔌 Already connected to WebSocket');
       return true;
     }
     
     try {
-      updateState({ isConnecting: true, error: null });
+      updateState({ 
+        state: 'connecting', 
+        error: null,
+        reconnectAttempts: (state.reconnectAttempts || 0) + 1
+      });
       
       const connected = await wsClient.current.connect();
       if (connected) {
         console.log('✅ WebSocket connected successfully');
         return true;
       } else {
+        const error = createConnectionError('Failed to connect to voice service', 'WEBSOCKET_FAILED');
         updateState({ 
-          error: 'Failed to connect to voice service',
-          isConnecting: false
+          state: 'error',
+          error
         });
         return false;
       }
     } catch (error) {
       console.error('❌ WebSocket connection error:', error);
+      const voiceError = createConnectionError(
+        error instanceof Error ? error.message : 'Failed to connect to voice service',
+        'NETWORK_ERROR'
+      );
       updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to connect to voice service',
-        isConnecting: false
+        state: 'error',
+        error: voiceError
       });
       return false;
     }
-  }, [state.isConnected, updateState]);
+  }, [state.state, state.reconnectAttempts, updateState]);
   
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -128,9 +151,9 @@ export function useVoiceConnection(options: UseVoiceConnectionOptions): UseVoice
     }
     
     updateState({
-      isConnected: false,
-      isConnecting: false,
-      error: null
+      state: 'disconnected',
+      error: null,
+      isReconnecting: false
     });
     
     console.log('🔌 WebSocket disconnected');
@@ -166,10 +189,10 @@ export function useVoiceConnection(options: UseVoiceConnectionOptions): UseVoice
   
   // Auto-connect if requested
   useEffect(() => {
-    if (autoConnect && !state.isConnected && !state.isConnecting) {
+    if (autoConnect && state.state === 'disconnected') {
       connect();
     }
-  }, [autoConnect, state.isConnected, state.isConnecting, connect]);
+  }, [autoConnect, state.state, connect]);
   
   return {
     state,

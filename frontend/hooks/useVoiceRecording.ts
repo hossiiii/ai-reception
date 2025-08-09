@@ -9,12 +9,12 @@ import {
   createAudioRecorder 
 } from '@/lib/audio-recorder';
 import { VoiceWebSocketClient } from '@/lib/websocket';
-
-export interface RecordingState {
-  isRecording: boolean;
-  hasPermission: boolean;
-  error: string | null;
-}
+import { 
+  RecordingState,
+  RecordingStateInfo, 
+  createAudioError,
+  createPermissionError
+} from '@/types/voice';
 
 export interface UseVoiceRecordingOptions {
   sampleRate?: number;
@@ -24,7 +24,7 @@ export interface UseVoiceRecordingOptions {
 
 export interface UseVoiceRecordingReturn {
   // State
-  state: RecordingState;
+  state: RecordingStateInfo;
   
   // Actions
   requestPermission: () => Promise<boolean>;
@@ -50,14 +50,20 @@ export function useVoiceRecording(
   const audioRecorder = useRef<AudioRecorder | null>(null);
   
   // Recording state
-  const [state, setState] = useState<RecordingState>({
-    isRecording: false,
+  const [state, setState] = useState<RecordingStateInfo>({
+    state: 'idle',
     hasPermission: false,
-    error: null
+    isListening: false,
+    error: null,
+    config: {
+      sampleRate,
+      channels,
+      chunkSize
+    }
   });
   
   // Update state helper
-  const updateState = useCallback((updates: Partial<RecordingState>) => {
+  const updateState = useCallback((updates: Partial<RecordingStateInfo>) => {
     setState(prev => ({ ...prev, ...updates }));
   }, []);
   
@@ -79,10 +85,22 @@ export function useVoiceRecording(
     
     // Setup state change callback
     audioRecorder.current.setStateChangeCallback((recorderState) => {
+      let newState: RecordingState = 'idle';
+      if (recorderState.isRecording) {
+        newState = 'recording';
+      }
+      // Note: AudioRecorderState doesn't have isProcessing, 
+      // processing state is managed by conversation layer
+      
+      const error = recorderState.errorMessage 
+        ? createAudioError(recorderState.errorMessage, 'RECORDING_FAILED')
+        : null;
+      
       updateState({
-        isRecording: recorderState.isRecording,
+        state: newState,
         hasPermission: recorderState.hasPermission,
-        error: recorderState.errorMessage || null
+        isListening: recorderState.isRecording,
+        error
       });
     });
     
@@ -98,14 +116,16 @@ export function useVoiceRecording(
   // Request microphone permission
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (!audioRecorder.current) {
-      updateState({ error: 'Audio recorder not initialized' });
+      const error = createAudioError('Audio recorder not initialized', 'RECORDING_FAILED');
+      updateState({ error });
       return false;
     }
     
     try {
       const hasPermission = await audioRecorder.current.requestPermission();
       if (!hasPermission) {
-        updateState({ error: 'Microphone permission denied' });
+        const error = createPermissionError('Microphone permission denied', 'MICROPHONE_DENIED');
+        updateState({ error });
         return false;
       }
       
@@ -113,9 +133,11 @@ export function useVoiceRecording(
       return true;
     } catch (error) {
       console.error('❌ Failed to request microphone permission:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to request microphone permission'
-      });
+      const voiceError = createPermissionError(
+        error instanceof Error ? error.message : 'Failed to request microphone permission',
+        'AUDIO_CONTEXT_FAILED'
+      );
+      updateState({ error: voiceError });
       return false;
     }
   }, [updateState]);
@@ -123,17 +145,19 @@ export function useVoiceRecording(
   // Start recording
   const startRecording = useCallback(async (): Promise<boolean> => {
     if (!audioRecorder.current) {
-      updateState({ error: 'Audio recorder not initialized' });
+      const error = createAudioError('Audio recorder not initialized', 'RECORDING_FAILED');
+      updateState({ error });
       return false;
     }
     
     if (!wsClient?.isConnected()) {
-      updateState({ error: 'WebSocket not connected' });
+      const error = createAudioError('WebSocket not connected', 'RECORDING_FAILED');
+      updateState({ error });
       return false;
     }
     
     // Don't start if already recording
-    if (state.isRecording) {
+    if (state.state === 'recording') {
       console.log('⚠️ Already recording, skipping start');
       return true;
     }
@@ -152,17 +176,20 @@ export function useVoiceRecording(
         console.log('🎤 Recording started');
         return true;
       } else {
-        updateState({ error: 'Failed to start recording' });
+        const error = createAudioError('Failed to start recording', 'RECORDING_FAILED');
+        updateState({ error });
         return false;
       }
     } catch (error) {
       console.error('❌ Failed to start recording:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Failed to start recording'
-      });
+      const voiceError = createAudioError(
+        error instanceof Error ? error.message : 'Failed to start recording',
+        'RECORDING_FAILED'
+      );
+      updateState({ error: voiceError });
       return false;
     }
-  }, [state.isRecording, state.hasPermission, wsClient, requestPermission, updateState]);
+  }, [state.state, state.hasPermission, wsClient, requestPermission, updateState]);
   
   // Stop recording and send to WebSocket
   const stopRecording = useCallback((): Blob | null => {

@@ -8,15 +8,14 @@ import {
   AudioPlayer, 
   createAudioPlayer 
 } from '@/lib/audio-recorder';
-
-export interface PlaybackState {
-  isPlaying: boolean;
-  error: string | null;
-}
+import { 
+  PlaybackStateInfo, 
+  createAudioError 
+} from '@/types/voice';
 
 export interface UseVoicePlaybackReturn {
   // State
-  state: PlaybackState;
+  state: PlaybackStateInfo;
   
   // Actions
   playAudioFromBase64: (base64Audio: string) => Promise<void>;
@@ -34,13 +33,14 @@ export function useVoicePlayback(): UseVoicePlaybackReturn {
   const lastAudioResponse = useRef<string | null>(null);
   
   // Playback state
-  const [state, setState] = useState<PlaybackState>({
-    isPlaying: false,
-    error: null
+  const [state, setState] = useState<PlaybackStateInfo>({
+    state: 'idle',
+    error: null,
+    queue: []
   });
   
   // Update state helper
-  const updateState = useCallback((updates: Partial<PlaybackState>) => {
+  const updateState = useCallback((updates: Partial<PlaybackStateInfo>) => {
     setState(prev => ({ ...prev, ...updates }));
   }, []);
   
@@ -64,7 +64,8 @@ export function useVoicePlayback(): UseVoicePlaybackReturn {
   const playAudioFromBase64 = useCallback(async (base64Audio: string): Promise<void> => {
     if (!audioPlayer.current || !base64Audio) {
       console.log('🔊 Audio playback skipped: no player or audio data');
-      updateState({ error: 'No audio player or data available' });
+      const error = createAudioError('No audio player or data available', 'PLAYBACK_FAILED');
+      updateState({ error });
       return;
     }
     
@@ -73,20 +74,22 @@ export function useVoicePlayback(): UseVoicePlaybackReturn {
     
     try {
       console.log('🔊 Starting audio playback...');
-      updateState({ isPlaying: true, error: null });
+      updateState({ state: 'playing', error: null });
       
       await audioPlayer.current.playAudioFromBase64(base64Audio);
       
       console.log('🔊 Audio playback completed successfully');
     } catch (error) {
       console.error('❌ Audio playback error:', error);
-      updateState({ 
-        error: error instanceof Error ? error.message : 'Audio playback failed'
-      });
+      const voiceError = createAudioError(
+        error instanceof Error ? error.message : 'Audio playback failed',
+        'PLAYBACK_FAILED'
+      );
+      updateState({ error: voiceError });
       throw error; // Re-throw to allow caller to handle
     } finally {
-      console.log('🔊 Setting isPlaying to false');
-      updateState({ isPlaying: false });
+      console.log('🔊 Setting playback to idle');
+      updateState({ state: 'idle' });
     }
   }, [updateState]);
   
@@ -97,19 +100,20 @@ export function useVoicePlayback(): UseVoicePlaybackReturn {
       playAudioFromBase64(lastAudioResponse.current);
     } else {
       console.log('⚠️ No last audio response available');
-      updateState({ error: 'No last audio response available' });
+      const error = createAudioError('No last audio response available', 'PLAYBACK_FAILED');
+      updateState({ error });
     }
   }, [playAudioFromBase64, updateState]);
   
   // Stop playback (if supported by audio player)
   const stopPlayback = useCallback(() => {
-    if (audioPlayer.current && state.isPlaying) {
+    if (audioPlayer.current && state.state === 'playing') {
       // AudioPlayer doesn't currently expose a stop method
       // but we can update our state
-      updateState({ isPlaying: false });
+      updateState({ state: 'idle' });
       console.log('🔊 Audio playback stopped');
     }
-  }, [state.isPlaying, updateState]);
+  }, [state.state, updateState]);
   
   // Check if ready for playback
   const isReady = Boolean(audioPlayer.current);

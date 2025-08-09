@@ -5,6 +5,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VoiceMessage as WSVoiceMessage } from '@/lib/websocket';
+import { 
+  VoiceError, 
+  createConnectionError, 
+  createValidationError,
+  ConnectionState,
+  RecordingState,
+  PlaybackState
+} from '@/types/voice';
 
 // Import specialized hooks
 import { useVoiceConnection } from './useVoiceConnection';
@@ -17,17 +25,22 @@ import { useVADIntegration } from './useVADIntegration';
 export type { ConversationMessage } from './useConversationFlow';
 
 export interface VoiceState {
-  // Connection states
+  // Connection state
+  connectionState: ConnectionState;
   isConnected: boolean;
   isConnecting: boolean;
   
-  // Recording states
+  // Recording state  
+  recordingState: RecordingState;
   isRecording: boolean;
   hasPermission: boolean;
   isListening: boolean;
   
   // Processing states
   isProcessing: boolean;
+  
+  // Playback state
+  playbackState: PlaybackState;
   isPlaying: boolean;
   
   // VAD states
@@ -41,8 +54,10 @@ export interface VoiceState {
   conversationCompleted: boolean;
   currentStep: string;
   
-  // Error handling
-  error: string | null;
+  // Error handling (typed errors)
+  errors: VoiceError[];
+  hasErrors: boolean;
+  error: string | null; // Backward compatibility
   
   // Visitor information
   visitorInfo?: any;
@@ -92,7 +107,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   const isGreetingRef = useRef(options.isGreeting || false);
   
   // Error state (not managed by sub-hooks)
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<VoiceError | null>(null);
   
   // Initialize specialized hooks
   const connection = useVoiceConnection({ 
@@ -121,7 +136,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     },
     onSpeechEnd: () => {
       // Auto-stop recording if currently recording and not processing
-      if (recording.state.isRecording && !conversation.state.isProcessing) {
+      if (recording.state.state === 'recording' && !conversation.state.isProcessing) {
         console.log('👂 VAD detected speech end - auto-stopping recording and VAD');
         setTimeout(() => {
           recording.stopRecording();
@@ -133,33 +148,47 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   });
   
   // Combine all states into unified VoiceState
+  const allErrors: VoiceError[] = [
+    error,
+    connection.state.error,
+    recording.state.error,
+    playback.state.error
+  ].filter((err): err is VoiceError => err !== null);
+  
   const state: VoiceState = {
-    // Connection
-    isConnected: connection.state.isConnected,
-    isConnecting: connection.state.isConnecting,
+    // Connection states
+    connectionState: connection.state.state,
+    isConnected: connection.state.state === 'connected',
+    isConnecting: connection.state.state === 'connecting',
     
-    // Recording
-    isRecording: recording.state.isRecording,
+    // Recording states
+    recordingState: recording.state.state,
+    isRecording: recording.state.state === 'recording',
     hasPermission: recording.state.hasPermission,
     isListening: vad.state.isListening,
     
-    // Processing & Playback
+    // Processing state
     isProcessing: conversation.state.isProcessing,
-    isPlaying: playback.state.isPlaying,
     
-    // VAD
+    // Playback states
+    playbackState: playback.state.state,
+    isPlaying: playback.state.state === 'playing',
+    
+    // VAD states
     vadActive: vad.state.isActive,
     vadEnergy: vad.state.energy,
     vadVolume: vad.state.volume,
     vadConfidence: vad.state.confidence,
     
-    // Conversation
+    // Conversation states
     conversationStarted: conversation.state.conversationStarted,
     conversationCompleted: conversation.state.conversationCompleted,
     currentStep: conversation.state.currentStep,
     
-    // Error (combined from all sources)
-    error: error || connection.state.error || recording.state.error || playback.state.error,
+    // Error handling (typed and backward compatible)
+    errors: allErrors,
+    hasErrors: allErrors.length > 0,
+    error: allErrors.length > 0 ? allErrors[0].message : null,
     
     // Business data
     visitorInfo: conversation.state.visitorInfo,
@@ -174,14 +203,14 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       // Request microphone permission first
       const hasPermission = await recording.requestPermission();
       if (!hasPermission) {
-        setError('Microphone permission is required for voice chat');
+        setError(createValidationError('Microphone permission is required for voice chat'));
         return false;
       }
       
       // Connect WebSocket
       const connected = await connection.connect();
       if (!connected) {
-        setError('Failed to connect to voice service');
+        setError(createConnectionError('Failed to connect to voice service'));
         return false;
       }
       
@@ -204,7 +233,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       
     } catch (error) {
       console.error('❌ Failed to start voice chat:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start voice chat');
+      setError(createValidationError(error instanceof Error ? error.message : 'Failed to start voice chat'));
       return false;
     }
   }, [connection, recording, conversation, isGreetingRef]);
@@ -212,7 +241,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Stop voice chat
   const stopVoiceChat = useCallback(() => {
     // Force stop recording if active
-    if (recording.state.isRecording) {
+    if (recording.state.state === 'recording') {
       recording.forceStopRecording();
     }
     
@@ -232,10 +261,10 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   
   // Start recording with VAD integration
   const startRecording = useCallback(async (): Promise<boolean> => {
-    console.log(`🎤 startRecording called - isProcessing: ${conversation.state.isProcessing}, isPlaying: ${playback.state.isPlaying}`);
+    console.log(`🎤 startRecording called - isProcessing: ${conversation.state.isProcessing}, isPlaying: ${playback.state.state === 'playing'}`);
     
     // Don't start recording if playing audio
-    if (playback.state.isPlaying) {
+    if (playback.state.state === 'playing') {
       console.log(`⚠️ Cannot start recording - audio is playing`);
       return false;
     }
@@ -275,7 +304,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     // If recording failed, stop VAD
     vad.stopListening();
     return false;
-  }, [recording, vad, conversation.state.isProcessing, playback.state.isPlaying]);
+  }, [recording, vad, conversation.state.isProcessing, playback.state.state]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -311,7 +340,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Send text input
   const sendTextInput = useCallback((text: string) => {
     if (!connection.client?.isConnected()) {
-      setError('Cannot send text: not connected');
+      setError(createValidationError('Cannot send text: not connected'));
       return;
     }
     
@@ -363,7 +392,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
           } else if (message.completed) {
             console.log('🎬 Conversation completed after final audio playback');
             // Stop all recording and VAD when conversation is completed
-            if (recording.state.isRecording) {
+            if (recording.state.state === 'recording') {
               recording.forceStopRecording();
             }
             vad.stopListening();
@@ -412,7 +441,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     
     const handleError = (message: WSVoiceMessage) => {
       console.error('❌ WebSocket error:', message);
-      setError(message.error || message.message || 'Unknown error');
+      setError(createValidationError(message.error || message.message || 'Unknown error'));
       conversation.updateConversationState({ isProcessing: false });
     };
     
@@ -424,7 +453,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
       });
       
       // Stop all recording and VAD when conversation is completed
-      if (recording.state.isRecording) {
+      if (recording.state.state === 'recording') {
         recording.forceStopRecording();
       }
       vad.stopListening();
