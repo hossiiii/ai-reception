@@ -1,5 +1,10 @@
 // Jest setup file for voice flow testing
 import '@testing-library/jest-dom'
+import { TextEncoder, TextDecoder } from 'util'
+
+// Polyfill for TextEncoder/TextDecoder in test environment
+global.TextEncoder = TextEncoder
+global.TextDecoder = TextDecoder
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -71,7 +76,15 @@ beforeAll(() => {
       (
         args[0].includes('Error: Uncaught [TypeError: Cannot read properties of null') ||
         args[0].includes('The above error occurred in the <') ||
-        args[0].includes('React will try to recreate this component tree')
+        args[0].includes('React will try to recreate this component tree') ||
+        args[0].includes('ReactDOMTestUtils.act is deprecated') ||
+        args[0].includes('Warning: An update to') ||
+        args[0].includes('inside a test was not wrapped in act') ||
+        args[0].includes('Warning: `ReactDOMTestUtils.act` is deprecated') ||
+        args[0].includes('WebSocket connection failed') ||
+        args[0].includes('WebSocket disconnected') ||
+        args[0].includes('Attempting reconnection') ||
+        args[0].includes('Microphone permission denied')
       )
     ) {
       return
