@@ -158,24 +158,43 @@ ai-reception/
 │   ├── requirements.txt             # Python 依存関係
 │   ├── pyproject.toml               # Python プロジェクト設定
 │   └── .env.example                 # 環境変数テンプレート
-├── frontend/                        # NextJS フロントエンド
+├── frontend/                        # NextJS フロントエンド（リファクタリング済み）
 │   ├── app/                         # App Router ディレクトリ
 │   │   ├── layout.tsx               # ルートレイアウト
 │   │   ├── page.tsx                 # ホームページ
 │   │   ├── globals.css              # グローバルスタイル
 │   │   └── reception/               # 受付ページ
-│   │       └── page.tsx
+│   │       └── page.tsx             # Zustand統合済み
 │   ├── components/                  # React コンポーネント
-│   │   ├── ChatInterface.tsx        # ハイブリッドチャットUI（テキスト・音声対応）
+│   │   ├── VoiceInterface.tsx       # 音声インターフェース（WebSocket対応）
 │   │   ├── ConversationDisplay.tsx  # 会話表示
 │   │   ├── ReceptionButton.tsx      # 受付ボタン
-│   │   ├── VoiceInput.tsx           # 音声入力コンポーネント
-│   │   ├── TextInput.tsx            # テキスト入力コンポーネント
-│   │   └── AudioPlayer.tsx          # 音声再生コンポーネント
+│   │   ├── AudioVisualizer.tsx      # 音声可視化コンポーネント
+│   │   └── VolumeReactiveMic.tsx    # ボリューム反応マイクUI
+│   ├── hooks/                       # カスタムフック（分割・最適化済み）
+│   │   ├── useVoiceChat.ts          # メイン音声チャットフック（統合）
+│   │   ├── useVoiceConnection.ts    # WebSocket接続管理
+│   │   ├── useVoiceRecording.ts     # 音声録音管理
+│   │   ├── useVoicePlayback.ts      # 音声再生管理
+│   │   ├── useConversationFlow.ts   # 会話フロー管理
+│   │   ├── useVADIntegration.ts     # Voice Activity Detection統合
+│   │   ├── useVoiceMessageHandlers.ts # WebSocketメッセージハンドラー
+│   │   ├── useVoiceAutoStart.ts     # 自動開始ロジック
+│   │   └── useGreetingMode.ts       # 挨拶モード管理
+│   ├── stores/                      # Zustand状態管理（Phase 4追加）
+│   │   ├── useReceptionStore.ts     # Reception画面状態
+│   │   └── useVoiceStore.ts         # 音声チャット状態
+│   ├── types/                       # TypeScript型定義（厳密化済み）
+│   │   └── voice.ts                 # 音声関連Union Types
 │   ├── lib/                         # ユーティリティ・API クライアント
-│   │   ├── api.ts                   # APIクライアント（音声API含む）
-│   │   ├── types.ts                 # TypeScript型定義
-│   │   └── audio.ts                 # 音声処理ユーティリティ
+│   │   ├── api.ts                   # APIクライアント
+│   │   ├── websocket.ts             # WebSocketクライアント
+│   │   ├── audio-recorder.ts        # 音声録音ユーティリティ
+│   │   └── vad.ts                   # VADアルゴリズム
+│   ├── __tests__/                   # テストスイート（49個のテスト）
+│   │   ├── integration/              # 統合テスト
+│   │   ├── components/               # コンポーネントテスト
+│   │   └── hooks/                    # フックテスト
 │   ├── package.json                 # Node.js 依存関係
 │   ├── tailwind.config.js           # Tailwind CSS設定
 │   └── tsconfig.json                # TypeScript設定
@@ -276,6 +295,262 @@ npm run build
 | `POST` | `/api/conversations/{id}/tts` | テキスト読み上げ（テキスト→音声変換） |
 | `GET` | `/api/conversations/{id}` | 会話履歴取得 |
 | `DELETE` | `/api/conversations/{id}` | 会話終了 |
+
+## 🏗️ フロントエンドアーキテクチャ（リファクタリング済み）
+
+### 改善された状態管理システム
+
+フロントエンドは段階的リファクタリングを完了し、保守性と拡張性が大幅に向上しました。
+
+#### Phase 1-4 リファクタリング成果
+
+**Phase 1: フック分割** ✅
+- 732行の巨大`useVoiceChat`フックを5つの専用フックに分割
+- 単一責務原則の適用により、各フックが特定の機能に特化
+- テスト可能性の向上とデバッグの容易化
+
+**Phase 2: 型安全性強化** ✅  
+- Union Typesによる厳密な状態定義
+- 不正な状態組み合わせをコンパイル時に防止
+- 構造化されたエラー管理システム
+
+**Phase 3: useEffect最適化** ✅
+- 複雑な依存関係を持つuseEffectを単一責務に分割
+- メモリリークの防止とクリーンアップ処理の完備
+- パフォーマンス向上（不要な再レンダリング防止）
+
+**Phase 4: Zustand状態管理** ✅
+- 分散した状態管理を統合・一元化
+- Redux DevToolsサポートによるデバッグ体験向上
+- セレクターパターンによるパフォーマンス最適化
+
+#### アーキテクチャ構成
+
+```typescript
+// 分割されたフック構造
+useVoiceChat (統合フック)
+├── useVoiceConnection    // WebSocket接続管理
+├── useVoiceRecording      // 音声録音制御
+├── useVoicePlayback       // 音声再生制御
+├── useConversationFlow    // 会話フロー管理
+└── useVADIntegration      // Voice Activity Detection
+
+// Zustand状態管理
+stores/
+├── useReceptionStore      // Reception画面の状態
+│   ├── sessionId
+│   ├── isGreeting
+│   ├── showCountdown
+│   └── inputMode
+└── useVoiceStore          // 音声チャットの状態
+    ├── connectionState
+    ├── recordingState
+    ├── playbackState
+    └── messages
+
+// 厳密な型定義
+type ValidVoiceState = 
+  | { phase: 'idle', connection: 'disconnected' }
+  | { phase: 'greeting', connection: 'connected', recording: 'idle' }
+  | { phase: 'active', connection: 'connected', recording: 'idle' | 'recording' }
+```
+
+#### 主要な改善効果
+
+- **保守性**: コードの可読性が大幅向上（各フック200行以内）
+- **テスト性**: 49個の包括的テストすべて通過
+- **型安全性**: TypeScript型チェックによる実行時エラー防止
+- **パフォーマンス**: 最適化されたレンダリングサイクル
+- **開発体験**: 明確な責務分離とデバッグツールサポート
+
+### フロントエンド状態管理アーキテクチャ
+
+```mermaid
+graph TB
+    subgraph "UI Components"
+        Reception[ReceptionPage<br/>受付画面]
+        Voice[VoiceInterface<br/>音声UI]
+        Button[ReceptionButton<br/>開始ボタン]
+        Display[ConversationDisplay<br/>会話表示]
+        Visualizer[AudioVisualizer<br/>音声可視化]
+    end
+    
+    subgraph "Zustand Stores"
+        ReceptionStore[useReceptionStore<br/>画面状態管理]
+        VoiceStore[useVoiceStore<br/>音声状態管理]
+        
+        subgraph "Reception State"
+            SessionId[sessionId]
+            IsGreeting[isGreeting]
+            ShowCountdown[showCountdown]
+            InputMode[inputMode]
+        end
+        
+        subgraph "Voice State"
+            ConnectionState[connectionState]
+            RecordingState[recordingState]
+            PlaybackState[playbackState]
+            Messages[messages]
+        end
+    end
+    
+    subgraph "Custom Hooks Layer"
+        VoiceChat[useVoiceChat<br/>統合フック]
+        
+        subgraph "Specialized Hooks"
+            Connection[useVoiceConnection<br/>WebSocket管理]
+            Recording[useVoiceRecording<br/>録音制御]
+            Playback[useVoicePlayback<br/>再生制御]
+            Conversation[useConversationFlow<br/>会話フロー]
+            VAD[useVADIntegration<br/>音声検出]
+        end
+        
+        subgraph "Effect Hooks"
+            MsgHandlers[useVoiceMessageHandlers<br/>メッセージ処理]
+            AutoStart[useVoiceAutoStart<br/>自動開始]
+            Greeting[useGreetingMode<br/>挨拶モード]
+        end
+    end
+    
+    subgraph "External Services"
+        WebSocketClient[WebSocket Client<br/>リアルタイム通信]
+        AudioRecorder[Audio Recorder<br/>音声録音]
+        APIClient[API Client<br/>REST通信]
+    end
+    
+    Reception --> ReceptionStore
+    Voice --> VoiceChat
+    Button --> ReceptionStore
+    Display --> VoiceChat
+    Visualizer --> VAD
+    
+    ReceptionStore --> SessionId
+    ReceptionStore --> IsGreeting
+    ReceptionStore --> ShowCountdown
+    ReceptionStore --> InputMode
+    
+    VoiceStore --> ConnectionState
+    VoiceStore --> RecordingState
+    VoiceStore --> PlaybackState
+    VoiceStore --> Messages
+    
+    VoiceChat --> Connection
+    VoiceChat --> Recording
+    VoiceChat --> Playback
+    VoiceChat --> Conversation
+    VoiceChat --> VAD
+    
+    VoiceChat --> MsgHandlers
+    VoiceChat --> AutoStart
+    VoiceChat --> Greeting
+    
+    Connection --> WebSocketClient
+    Recording --> AudioRecorder
+    Conversation --> APIClient
+    
+    style ReceptionStore fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style VoiceStore fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style VoiceChat fill:#fff3e0,stroke:#e65100,stroke-width:3px
+```
+
+### 状態フロー図
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: 初期状態
+    
+    Idle --> SystemCheck: ページロード
+    SystemCheck --> Ready: システム正常
+    SystemCheck --> Error: システムエラー
+    
+    Ready --> Greeting: 受付開始ボタン
+    
+    Greeting --> Connected: WebSocket接続
+    Connected --> GreetingPlaying: 挨拶音声再生
+    GreetingPlaying --> WaitingInput: 挨拶完了
+    
+    WaitingInput --> Recording: 録音開始
+    Recording --> Processing: 録音停止
+    Processing --> Playing: AI応答再生
+    Playing --> WaitingInput: 再生完了
+    
+    WaitingInput --> Completed: 会話完了
+    Playing --> Completed: 最終応答
+    
+    Completed --> Countdown: カウントダウン開始
+    Countdown --> Idle: リセット
+    
+    Error --> Idle: 再試行
+    
+    note right of Recording
+        VADによる自動停止
+        または手動停止
+    end note
+    
+    note right of Processing
+        音声→テキスト変換
+        AI処理中
+    end note
+    
+    note right of Countdown
+        5秒カウントダウン後
+        自動的に初期画面へ
+    end note
+```
+
+### データフロー図
+
+```mermaid
+flowchart LR
+    subgraph "User Actions"
+        Start[開始ボタン]
+        Speak[音声入力]
+        Type[テキスト入力]
+    end
+    
+    subgraph "Zustand Actions"
+        SetSession[setSessionId]
+        SetGreeting[setIsGreeting]
+        SetRecording[setRecordingState]
+        AddMessage[addMessage]
+    end
+    
+    subgraph "Side Effects"
+        WSConnect[WebSocket接続]
+        AudioCapture[音声キャプチャ]
+        APICall[API呼び出し]
+        TTSPlay[音声再生]
+    end
+    
+    subgraph "State Updates"
+        StoreUpdate[Store更新]
+        UIRender[UI再レンダリング]
+    end
+    
+    Start --> SetSession
+    Start --> SetGreeting
+    
+    Speak --> SetRecording
+    Speak --> AudioCapture
+    
+    Type --> AddMessage
+    Type --> APICall
+    
+    SetSession --> WSConnect
+    SetRecording --> AudioCapture
+    AddMessage --> StoreUpdate
+    
+    WSConnect --> StoreUpdate
+    AudioCapture --> APICall
+    APICall --> AddMessage
+    APICall --> TTSPlay
+    
+    TTSPlay --> StoreUpdate
+    StoreUpdate --> UIRender
+    
+    style StoreUpdate fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style UIRender fill:#ffecb3,stroke:#f57c00,stroke-width:2px
+```
 
 ## 🔄 実装済み音声機能
 
@@ -745,13 +1020,52 @@ async def _ai_determine_visitor_type(self, purpose: str, visitor_info: dict) -> 
 
 ---
 
+## 📝 更新履歴
+
+### v1.3.0 (2025-08-09)
+- 🏗️ **フロントエンド大規模リファクタリング完了**
+  - Phase 1: 732行の`useVoiceChat`フックを5つの専用フックに分割
+  - Phase 2: Union Typesによる型安全性強化
+  - Phase 3: useEffect依存関係の最適化
+  - Phase 4: Zustand導入による状態管理統合
+- ✅ **品質改善**
+  - 全49個のフロントエンドテスト通過
+  - TypeScript型チェック強化
+  - メモリリーク防止処理実装
+  - パフォーマンス最適化
+
+### v1.2.0 (2025-08-08)
+- 🚚 **配達ショートカット機能追加**
+  - AI早期配達検出による迅速対応
+  - 専用ガイダンスノードアーキテクチャ実装
+- 🎯 **AI訪問者タイプ判定システム**
+  - 予約来客、営業訪問、配達業者の自動判定
+  - タイプ別最適化案内
+
+### v1.1.0 (2025-08-07)
+- 🎙️ **音声機能実装**
+  - Whisper API統合（音声→テキスト）
+  - OpenAI TTS統合（テキスト→音声）
+  - WebSocket音声ストリーミング対応
+- 📱 **音声UI実装**
+  - ボリューム反応マイクUI
+  - 音声可視化コンポーネント
+  - VAD（Voice Activity Detection）統合
+
+### v1.0.0 (2025-08-06)
+- 🎉 **初回リリース**
+  - LangGraphベースAI受付システム
+  - Google Calendar統合
+  - Slack通知機能
+  - タブレット最適化UI
+
 ## 📜 ライセンス
 
 MIT License - 詳細は`LICENSE`ファイルを参照
 
 ---
 
-**AI Reception System v1.2.0 - Step1: Specialized Node Architecture Complete ✅**
+**AI Reception System v1.3.0 - Frontend Architecture Refactored ✅**
 
 ### 🎉 新機能ハイライト
 
@@ -762,6 +1076,8 @@ MIT License - 詳細は`LICENSE`ファイルを参照
 - **🤖 AIフロー**: LangGraphによる堅牢な会話状態管理
 - **🚚 配達ショートカット**: AI早期検出による迅速な配達対応
 - **🎯 専用ガイダンスノード**: 訪問者タイプ別最適化案内システム
+- **🏗️ リファクタリング完了**: フロントエンド4段階改善実施
+- **📦 Zustand統合**: 状態管理の一元化と最適化
 - **🧪 テスト完全対応**: 111個の包括的テスト全て成功
   - 21個のレセプションフローテスト（状態遷移完全検証）
   - 7個の専用ノードアーキテクチャテスト（新規）
