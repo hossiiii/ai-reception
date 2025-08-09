@@ -1,29 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import VoiceInterface from '@/components/VoiceInterface';
 import ReceptionButton from '@/components/ReceptionButton';
 import { apiClient } from '@/lib/api';
+import { useReceptionStore } from '@/stores/useReceptionStore';
 
 export default function ReceptionPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSystemReady, setIsSystemReady] = useState(false);
-  const [showCountdown, setShowCountdown] = useState(false);
-  const [countdownValue, setCountdownValue] = useState(5);
-  const [isGreeting, setIsGreeting] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  // Phase 4: Use Zustand store selectors to avoid infinite loops
+  const sessionId = useReceptionStore(state => state.sessionId);
+  const isLoading = useReceptionStore(state => state.isLoading);
+  const error = useReceptionStore(state => state.error);
+  const isSystemReady = useReceptionStore(state => state.isSystemReady);
+  const showCountdown = useReceptionStore(state => state.showCountdown);
+  const countdownValue = useReceptionStore(state => state.countdownValue);
+  const isGreeting = useReceptionStore(state => state.isGreeting);
+  const showWelcome = useReceptionStore(state => state.showWelcome);
+  
+  const setSessionId = useReceptionStore(state => state.setSessionId);
+  const setIsLoading = useReceptionStore(state => state.setIsLoading);
+  const setError = useReceptionStore(state => state.setError);
+  const setIsSystemReady = useReceptionStore(state => state.setIsSystemReady);
+  const setShowCountdown = useReceptionStore(state => state.setShowCountdown);
+  const setCountdownValue = useReceptionStore(state => state.setCountdownValue);
+  const setIsGreeting = useReceptionStore(state => state.setIsGreeting);
+  const setShowWelcome = useReceptionStore(state => state.setShowWelcome);
+  const handleGreetingComplete = useReceptionStore(state => state.handleGreetingComplete);
+  const resetReception = useReceptionStore(state => state.resetReception);
+  const resetSession = useReceptionStore(state => state.resetSession);
 
   // Check system health on mount (don't auto-start greeting)
   useEffect(() => {
     checkSystemHealth();
   }, []);
 
-  const handleGreetingComplete = () => {
-    console.log('Greeting completed');
-    setIsGreeting(false);
-  };
+  // handleGreetingComplete is now provided by the store
 
   const checkSystemHealth = async () => {
     try {
@@ -79,13 +90,8 @@ export default function ReceptionPage() {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (showCountdown && countdownValue === 0) {
-      // Reset to welcome screen
-      setShowCountdown(false);
-      setSessionId(null);
-      setError(null);
-      setCountdownValue(5);
-      setShowWelcome(true);
-      setIsGreeting(false);
+      // Reset to welcome screen using store action
+      resetReception();
     }
     // Add return statement for all code paths
     return undefined;
@@ -96,10 +102,7 @@ export default function ReceptionPage() {
   };
 
   const handleRetry = () => {
-    setError(null);
-    setSessionId(null);
-    setIsGreeting(false);
-    setShowWelcome(true);
+    resetReception();
     checkSystemHealth();
   };
 

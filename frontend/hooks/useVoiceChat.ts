@@ -13,6 +13,9 @@ import {
   PlaybackState
 } from '@/types/voice';
 
+// Phase 4: Import Zustand stores (for future use)
+// import { useVoiceStore, useVoiceSelector, useVoiceActions } from '@/stores/useVoiceStore';
+
 // Import specialized hooks
 import { useVoiceConnection } from './useVoiceConnection';
 import { useVoiceRecording } from './useVoiceRecording';
@@ -107,8 +110,17 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   // Generate session ID
   const sessionId = useRef(options.sessionId || generateSessionId()).current;
   
-  // Error state (not managed by sub-hooks)
-  const [error, setError] = useState<VoiceError | null>(null);
+  // Phase 4: Zustand integration temporarily disabled to fix infinite loop
+  // const voiceState = useVoiceSelector.state();
+  // const voiceActions = useVoiceActions();
+  
+  // Initialize session ID in store
+  // useEffect(() => {
+  //   voiceActions.setSessionId(sessionId);
+  // }, [sessionId, voiceActions]);
+  
+  // Error state (temporary bridge during migration)
+  const [, setError] = useState<VoiceError | null>(null);
   
   // Phase 3: Use greeting mode management hook
   const { isGreetingRef } = useGreetingMode({ isGreeting: options.isGreeting });
@@ -151,30 +163,23 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     }
   });
   
-  // Combine all states into unified VoiceState
-  const allErrors: VoiceError[] = [
-    error,
-    connection.state.error,
-    recording.state.error,
-    playback.state.error
-  ].filter((err): err is VoiceError => err !== null);
-  
+  // Phase 4: Create combined state from specialized hooks (removing problematic sync effects)
   const state: VoiceState = {
-    // Connection states
+    // Connection state
     connectionState: connection.state.state,
     isConnected: connection.state.state === 'connected',
     isConnecting: connection.state.state === 'connecting',
     
-    // Recording states
+    // Recording state  
     recordingState: recording.state.state,
     isRecording: recording.state.state === 'recording',
     hasPermission: recording.state.hasPermission,
     isListening: vad.state.isListening,
     
-    // Processing state
+    // Processing states
     isProcessing: conversation.state.isProcessing,
     
-    // Playback states
+    // Playback state
     playbackState: playback.state.state,
     isPlaying: playback.state.state === 'playing',
     
@@ -189,14 +194,18 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
     conversationCompleted: conversation.state.conversationCompleted,
     currentStep: conversation.state.currentStep,
     
-    // Error handling (typed and backward compatible)
-    errors: allErrors,
-    hasErrors: allErrors.length > 0,
-    error: allErrors.length > 0 ? allErrors[0].message : null,
+    // Error handling (combined from specialized hooks)
+    errors: [
+      connection.state.error,
+      recording.state.error,
+      playback.state.error
+    ].filter(Boolean) as VoiceError[],
+    hasErrors: !!(connection.state.error || recording.state.error || playback.state.error),
+    error: connection.state.error?.message || recording.state.error?.message || playback.state.error?.message || null,
     
-    // Business data
+    // Visitor information
     visitorInfo: conversation.state.visitorInfo,
-    calendarResult: conversation.state.calendarResult
+    calendarResult: conversation.state.calendarResult,
   };
   
   // Start voice chat
@@ -375,7 +384,7 @@ export function useVoiceChat(options: UseVoiceChatOptions = {}): UseVoiceChatRet
   
   return {
     state,
-    messages: conversation.messages,
+    messages: conversation.messages, // Use hook messages directly
     startVoiceChat,
     stopVoiceChat,
     startRecording,
