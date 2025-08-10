@@ -3,6 +3,7 @@ from typing import Protocol
 from openai import AsyncOpenAI
 
 from ..config import settings
+from .connection_pool import get_connection_pool
 
 
 class MessageProcessor(Protocol):
@@ -23,7 +24,11 @@ class TextService:
     def __init__(self) -> None:
         # Initialize OpenAI client with fallback for development
         if settings.openai_api_key and settings.openai_api_key.startswith('sk-'):
-            self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+            # Use individual OpenAI client with optimized timeout
+            self.openai_client = AsyncOpenAI(
+                api_key=settings.openai_api_key,
+                timeout=5.0  # Reduced timeout for better performance
+            )
             self.use_mock = False
             print(f"✅ TextService initialized with OpenAI API (key: {settings.openai_api_key[:10]}...)")
         else:
@@ -69,7 +74,7 @@ class TextService:
                 messages=messages,
                 max_tokens=200,  # Reduced for faster response
                 temperature=0.7,
-                timeout=15  # Add timeout
+                timeout=5  # Reduced timeout from 15s to 5s for better performance
             )
 
             ai_response = response.choices[0].message.content or ""

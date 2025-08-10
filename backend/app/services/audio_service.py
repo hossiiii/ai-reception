@@ -5,6 +5,7 @@ from typing import Protocol
 from openai import AsyncOpenAI
 
 from ..config import settings
+from .connection_pool import get_connection_pool
 
 
 class AudioProcessor(Protocol):
@@ -25,7 +26,11 @@ class AudioService:
     def __init__(self):
         # Use same settings pattern as Step1's TextService
         if settings.openai_api_key and settings.openai_api_key.startswith('sk-'):
-            self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+            # Use individual OpenAI client with optimized timeout
+            self.openai_client = AsyncOpenAI(
+                api_key=settings.openai_api_key,
+                timeout=5.0  # Reduced timeout for better performance
+            )
             self.use_mock = False
             print(f"✅ AudioService initialized with OpenAI API (key: {settings.openai_api_key[:10]}...)")
         else:
@@ -102,7 +107,7 @@ class AudioService:
                 messages=messages,
                 max_tokens=200,
                 temperature=0.7,
-                timeout=15
+                timeout=5  # Reduced timeout from 15s to 5s for better performance
             )
 
             ai_response = response.choices[0].message.content or ""
@@ -126,7 +131,7 @@ class AudioService:
             print(f"🔊 Generating audio for: {text[:50]}...")
 
             response = await self.openai_client.audio.speech.create(
-                model="gpt-4o-mini-tts",  # Standard TTS model for good quality/speed balance
+                model="gpt-4o-mini-tts",  # Corrected TTS model name
                 voice="alloy",   # Clear, neutral voice suitable for Japanese
                 input=text,
                 response_format="wav"  # WAV format for broad compatibility
