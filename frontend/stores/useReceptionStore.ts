@@ -96,7 +96,7 @@ const initialState: ReceptionState = {
 
 export const useReceptionStore = create<ReceptionStore>()(
   devtools(
-    (set, _get) => ({
+    (set, get) => ({
       ...initialState,
       
       // Session actions
@@ -155,7 +155,12 @@ export const useReceptionStore = create<ReceptionStore>()(
       // Reset actions
       resetReception: () => {
         console.log('🔄 Resetting reception state');
-        set({ ...initialState }, false, 'resetReception');
+        // Preserve isSystemReady state when resetting
+        const currentState = get();
+        set({ 
+          ...initialState, 
+          isSystemReady: currentState.isSystemReady 
+        }, false, 'resetReception');
       },
       
       resetSession: () => {
