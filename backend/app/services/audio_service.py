@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 
 from ..config import settings
 from .connection_pool import get_connection_pool
+from .simple_audio_cache import get_audio_cache
 
 
 class AudioProcessor(Protocol):
@@ -24,6 +25,9 @@ class AudioService:
     """Step2: Audio processing service that extends Step1's MessageProcessor architecture"""
 
     def __init__(self):
+        # Initialize audio cache
+        self.audio_cache = get_audio_cache()
+        
         # Use same settings pattern as Step1's TextService
         if settings.openai_api_key and settings.openai_api_key.startswith('sk-'):
             # Use individual OpenAI client with optimized timeout
@@ -32,7 +36,7 @@ class AudioService:
                 timeout=5.0  # Reduced timeout for better performance
             )
             self.use_mock = False
-            print(f"✅ AudioService initialized with OpenAI API (key: {settings.openai_api_key[:10]}...)")
+            print(f"✅ AudioService initialized with OpenAI API and cache")
         else:
             self.openai_client = None
             self.use_mock = True
@@ -119,26 +123,37 @@ class AudioService:
             print(f"❌ Text generation error: {e}")
             return "申し訳ございません。システムエラーが発生しました。もう一度お試しください。"
 
-    async def generate_audio_output(self, text: str) -> bytes:
-        """Step2: Convert text to audio using OpenAI TTS API"""
+    async def generate_audio_output(self, text: str, voice: str = "alloy") -> bytes:
+        """Step2: Convert text to audio using OpenAI TTS API with caching"""
+        
+        # Check cache first
+        cached_audio = self.audio_cache.get(text, voice)
+        if cached_audio:
+            return cached_audio
+        
         if self.use_mock:
             # Add realistic delay to simulate API call
             await asyncio.sleep(0.6)
             # Return mock audio data (empty bytes with size indicator)
-            return b"mock_audio_data_" + text.encode('utf-8')[:20] + b"_end"
+            mock_audio = b"mock_audio_data_" + text.encode('utf-8')[:20] + b"_end"
+            self.audio_cache.set(text, mock_audio, voice)
+            return mock_audio
 
         try:
             print(f"🔊 Generating audio for: {text[:50]}...")
 
             response = await self.openai_client.audio.speech.create(
                 model="gpt-4o-mini-tts",  # Corrected TTS model name
-                voice="alloy",   # Clear, neutral voice suitable for Japanese
+                voice=voice,   # Clear, neutral voice suitable for Japanese
                 input=text,
                 response_format="wav"  # WAV format for broad compatibility
             )
 
             audio_data = response.content
             print(f"✅ Audio generated ({len(audio_data)} bytes)")
+            
+            # Store in cache
+            self.audio_cache.set(text, audio_data, voice)
 
             return audio_data
 
