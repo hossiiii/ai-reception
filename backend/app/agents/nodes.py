@@ -9,6 +9,8 @@ from ..models.visitor import ConversationLog, VisitorInfo, VisitorType
 from ..services.calendar_service import CalendarService
 from ..services.slack_service import SlackService
 from ..services.text_service import TextService
+from ..services.background_tasks import background_task_manager
+from .templates import ResponseTemplates
 
 
 class ReceptionNodes:
@@ -20,34 +22,10 @@ class ReceptionNodes:
         self.slack_service = SlackService()
 
     async def greeting_node(self, state: ConversationState) -> ConversationState:
-        """AI-powered initial greeting to visitor - collect all info at once"""
+        """Template-based initial greeting to visitor - collect all info at once"""
 
-        # Generate context-aware greeting that asks for company, name, and purpose
-        context = f"""
-現在時刻: {datetime.now().strftime('%Y年%m月%d日 %H:%M')}
-セッション: 新規訪問者
-
-自然で温かみのある日本語で、企業受付として適切な挨拶をしてください。
-以下を含めてください：
-1. 歓迎の挨拶
-2. 会社名・お名前・訪問目的を一度に確認依頼
-
-丁寧で親しみやすい対応を心がけてください。
-訪問者が一度の入力で必要な情報を全て提供できるように案内してください。
-"""
-
-        try:
-            greeting_message = await self.text_service.generate_output(
-                "音声受付システムの初回挨拶。簡潔に会社名、お名前、ご用件を伺う。入力例は不要。",
-                context
-            )
-        except Exception as e:
-            print(f"AI greeting generation error: {e}")
-            # Fallback to static greeting (optimized for voice)
-            greeting_message = """いらっしゃいませ。音声受付システムです。
-
-会社名、お名前、ご用件をお聞かせください。"""
-
+        # Use template instead of AI generation for consistent and fast response
+        greeting_message = ResponseTemplates.GREETING
         ai_message = AIMessage(content=greeting_message)
 
         return {
@@ -142,33 +120,11 @@ class ReceptionNodes:
                 "confidence": "high"
             }
             
-            # Generate delivery guidance message directly
-            try:
-                delivery_message = await self.text_service.generate_output(
-                    "配達業者への直接案内",
-                    f"""配達業者への案内メッセージを生成してください：
-
-訪問者入力: "{last_message.content}"
-会社名: {delivery_visitor_info.get('company')}
-
-配達業者に対する案内：
-1. 簡潔で迅速な対応
-2. 配達手順の説明
-3. 感謝の表現
-
-自然で丁寧な日本語で、配達業者向けの案内メッセージを生成してください。"""
-                )
-            except Exception as e:
-                print(f"AI delivery message generation error: {e}")
-                delivery_message = f"""{delivery_visitor_info.get('company')}様、お疲れ様です。
-
-配達の件でお越しいただき、ありがとうございます。
-
-・置き配の場合: 玄関前にお荷物をお置きください
-・サインが必要な場合: 奥の呼び鈴を押してお待ちください
-
-配達完了後は、そのままお帰りいただけます。
-ありがとうございました。"""
+            # Use template for delivery guidance message
+            delivery_message = ResponseTemplates.format_template(
+                ResponseTemplates.DELIVERY_GUIDANCE,
+                company=delivery_visitor_info.get('company', '配送業者')
+            )
             
             ai_message = AIMessage(content=delivery_message)
             
@@ -238,7 +194,24 @@ class ReceptionNodes:
             try:
                 ai_response = await self.text_service.generate_output(
                     "全情報の収集（不足情報あり）",
-                    context
+                    f"""会話履歴:
+{conversation_history}
+
+既に取得済みの情報:
+{chr(10).join(collected_info) if collected_info else "（なし）"}
+
+ユーザーからの最新入力: "{last_message.content}"
+エラー回数: {state.get("error_count", 0)}回目
+不足している情報: {', '.join(missing_info)}
+
+この会話の文脈を理解した上で、既に取得済みの情報は保持しつつ、不足している情報のみを自然で丁寧な日本語で教えてもらうよう案内してください。
+
+重要：
+- 既に取得済みの情報は再度聞かない
+- 不足している情報のみを具体的に指摘する
+- 会話の流れを考慮した自然な案内にする
+- エラー回数が多い場合は、より分かりやすい説明をする
+- 会社名やお名前を聞く場合は、「音声認識が難しい場合は、テキストで入力することもできます」と案内する"""
                 )
                 ai_message = AIMessage(content=ai_response)
             except Exception as e:
@@ -296,7 +269,18 @@ class ReceptionNodes:
         try:
             confirmation_message = await self.text_service.generate_output(
                 "訪問者情報の確認依頼",
-                context
+                f"""収集した訪問者情報:
+- 会社名: {merged_visitor_info.get('company', '不明')}
+- お名前: {merged_visitor_info.get('name', '不明')}
+- 訪問目的: {merged_visitor_info.get('purpose', '不明')}
+
+この情報をユーザーに確認してもらうメッセージを生成してください。
+以下を含めてください：
+1. 収集した情報の提示
+2. 情報が正しいかの確認依頼
+3. 修正が必要な場合の案内
+
+自然で丁寧な日本語で、分かりやすく確認を求めてください。"""
             )
         except Exception as e:
             print(f"AI response error in collect_all_info confirmation: {e}")
@@ -353,7 +337,18 @@ class ReceptionNodes:
             try:
                 confirmation_message = await self.text_service.generate_output(
                     "訪問者情報の確認依頼",
-                    context
+                    f"""収集した訪問者情報:
+- 会社名: {visitor_info.get('company', '不明')}
+- お名前: {visitor_info.get('name', '不明')}
+- 訪問目的: {visitor_info.get('purpose', '不明')}
+
+この情報をユーザーに確認してもらうメッセージを生成してください。
+以下を含めてください：
+1. 収集した情報の提示
+2. 情報が正しいかの確認依頼
+3. 修正が必要な場合の案内
+
+自然で丁寧な日本語で、分かりやすく確認を求めてください。"""
                 )
             except Exception as e:
                 print(f"AI response error in info confirmation: {e}")
@@ -391,19 +386,11 @@ class ReceptionNodes:
             # Check if purpose is already set to avoid redundant questions
             if visitor_info.get("purpose"):
                 # Purpose already collected, proceed directly to processing
-                try:
-                    ai_response = await self.text_service.generate_output(
-                        "情報確認完了の案内（処理開始）",
-                        f"""訪問者情報が確認されました：
-- 会社名: {visitor_info.get('company')}
-- 名前: {visitor_info.get('name')}  
-- 目的: {visitor_info.get('purpose')}
-
-確認完了を伝え、カレンダー確認等の次の処理を進めることを自然な日本語で案内してください。"""
-                    )
-                except Exception as e:
-                    print(f"AI response error in confirmation completion: {e}")
-                    ai_response = "ありがとうございます。確認いたしました。処理を進めさせていただきます。"
+                # Use template for confirmation completion
+                ai_response = ResponseTemplates.format_template(
+                    ResponseTemplates.INFO_CONFIRMED_WITH_PURPOSE,
+                    purpose=visitor_info.get('purpose', '')
+                )
 
                 ai_message = AIMessage(content=ai_response)
 
@@ -468,14 +455,8 @@ class ReceptionNodes:
                         return guidance_result
             else:
                 # Purpose not set, need to ask for it
-                try:
-                    ai_response = await self.text_service.generate_output(
-                        "情報確認完了の案内（目的質問）",
-                        "訪問者の会社名と名前は確認されましたが、訪問目的がまだ不明です。目的を確認するよう自然な日本語で案内してください。"
-                    )
-                except Exception as e:
-                    print(f"AI response error in confirmation completion: {e}")
-                    ai_response = "ありがとうございます。確認いたしました。訪問目的を教えていただけますでしょうか？"
+                # Use template for confirmation with purpose request
+                ai_response = "ありがとうございます。確認いたしました。訪問目的を教えていただけますでしょうか？"
 
                 ai_message = AIMessage(content=ai_response)
 
@@ -514,7 +495,18 @@ class ReceptionNodes:
                 try:
                     reconfirmation_message = await self.text_service.generate_output(
                         "修正後の再確認依頼",
-                        context
+                        f"""修正後の訪問者情報:
+- 会社名: {visitor_info.get('company', '不明')}
+- お名前: {visitor_info.get('name', '不明')}
+- 訪問目的: {visitor_info.get('purpose', '不明')}
+
+修正された情報を元に、再度確認をお願いするメッセージを生成してください。
+以下を含めてください：
+1. 修正反映の確認
+2. 更新された情報の提示
+3. 再確認の依頼
+
+自然で丁寧な日本語で、分かりやすく再確認を求めてください。"""
                     )
                 except Exception as e:
                     print(f"AI response error in reconfirmation: {e}")
@@ -538,16 +530,8 @@ class ReceptionNodes:
                 }
             else:
                 # No specific corrections provided, ask for complete re-entry
-                try:
-                    correction_message = await self.text_service.generate_output(
-                        "情報修正の案内",
-                        "訪問者が情報修正を希望しています。全ての情報（会社名・名前・訪問目的）を再度入力してもらうよう、自然で丁寧な日本語で案内してください。"
-                    )
-                except Exception as e:
-                    print(f"AI response error in correction request: {e}")
-                    correction_message = """承知いたしました。お手数ですが、会社名・お名前・訪問目的を再度教えてください。
-
-例: 株式会社テストの山田太郎です。本日10時から貴社の田中様とお約束をいただいております。"""
+                # Use template for correction request message
+                correction_message = ResponseTemplates.CORRECTION_REQUEST
 
                 ai_message = AIMessage(content=correction_message)
 
@@ -561,20 +545,8 @@ class ReceptionNodes:
 
         else:
             # Unclear response - ask for clarification
-            try:
-                error_message = await self.text_service.generate_output(
-                    "曖昧な確認回答への対応",
-                    f"""ユーザーの入力: "{last_message.content}"
-                    
-ユーザーの回答が曖昧で、確認か修正かが分からない状況です。
-「はい」「いいえ」または具体的な修正内容を教えてもらうよう、自然で丁寧な日本語で案内してください。"""
-                )
-            except Exception as e:
-                print(f"AI response error in unclear confirmation: {e}")
-                error_message = """申し訳ございません。「はい」または「いいえ」でお答えください。
-
-情報が正しい場合は「はい」
-修正が必要な場合は「いいえ」または修正内容を直接お教えください。"""
+            # Use template for unclear confirmation error
+            error_message = ResponseTemplates.UNCLEAR_CONFIRMATION
 
             ai_message = AIMessage(content=error_message)
 
@@ -614,17 +586,23 @@ class ReceptionNodes:
             # Generate AI question for visitor type
             ai_response = await self.text_service.generate_output(
                 "訪問目的の確認",
-                context
+                f"""会話履歴:
+{conversation_history}
+
+訪問者情報:
+- 会社名: {company}
+- お名前: {name}
+
+この会話の文脈を理解した上で、訪問者の来訪目的を自然に質問してください。
+
+重要：
+- 選択肢は提示せず、自然な会話形式で目的を聞く
+- 「どのようなご用件でしょうか？」のような自然な質問にする
+- 訪問者が自由に答えられる形にする
+- 予約、営業、配達のいずれかを判定できるよう、オープンな質問をする"""
             )
 
             ai_message = AIMessage(content=ai_response)
-
-            return {
-                **state,
-                "messages": state.get("messages", []) + [ai_message],
-                "visitor_info": visitor_info,
-                "current_step": "visitor_type_response"  # Wait for user response
-            }
 
         except Exception as e:
             print(f"AI type detection error: {e}")
@@ -635,7 +613,7 @@ class ReceptionNodes:
 
             ai_message = AIMessage(content=fallback_message)
 
-            return {
+        return {
                 **state,
                 "messages": state.get("messages", []) + [ai_message],
                 "visitor_info": visitor_info,
@@ -925,7 +903,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         }
 
     async def send_slack_node(self, state: ConversationState) -> ConversationState:
-        """Send notification to Slack"""
+        """Send notification to Slack as background task"""
         visitor_info = state["visitor_info"]
         messages = state["messages"]
         calendar_result = state.get("calendar_result")
@@ -942,15 +920,13 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                 }
                 conversation_logs.append(log)
 
-        try:
-            # Send Slack notification
-            await self.slack_service.send_visitor_notification(
-                visitor_info,
-                conversation_logs,
-                calendar_result
-            )
-        except Exception as e:
-            print(f"Slack notification error: {e}")
+        # Send Slack notification as background task to avoid blocking user response
+        await background_task_manager.send_slack_notification_async(
+            visitor_info,
+            conversation_logs,
+            calendar_result
+        )
+        print(f"📤 Slack notification scheduled in background for: {visitor_info.get('company', 'Unknown')}")
 
         return {
             **state,
