@@ -103,6 +103,86 @@ class SlackService:
             print(f"Slack error notification failed: {e}")
             return False
 
+    async def send_video_call_notification(
+        self,
+        visitor_info: VisitorInfo,
+        room_url: str,
+        room_name: str
+    ) -> bool:
+        """Send video call notification to Slack"""
+        try:
+            blocks = [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "📹 ビデオ通話受付",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*来客者名:*\n{visitor_info.get('name', 'N/A')}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*会社名:*\n{visitor_info.get('company', 'N/A')}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*ルーム名:*\n{room_name}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*開始時刻:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                        }
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*🔗 ビデオ通話に参加:*\n<{room_url}|ここをクリックして参加>"
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "⚠️ 最大2名まで参加可能です。来訪者と1対1で対応してください。"
+                        }
+                    ]
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "ビデオ通話に参加",
+                                "emoji": True
+                            },
+                            "style": "primary",
+                            "url": room_url
+                        }
+                    ]
+                }
+            ]
+
+            return await self._send_webhook_message({
+                "blocks": blocks,
+                "text": f"ビデオ通話受付: {visitor_info.get('name', 'N/A')}様からのビデオ通話要請"
+            })
+
+        except Exception as e:
+            print(f"Video call Slack notification error: {e}")
+            return False
+
     def _create_visitor_message_blocks(
         self,
         visitor_info: VisitorInfo,

@@ -1,0 +1,28 @@
+{
+  "name": "ai-reception",
+  "version": "1.0.0",
+  "description": "タブレット型AI受付システムのStep1実装。LangGraph + FastAPI + NextJSを使用したテキスト・音声対応来客システム。",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently --names \"backend,visitor,staff\" --prefix-colors \"blue,green,yellow\" \"npm run dev:backend\" \"npm run dev:visitor\" \"npm run dev:staff\"",
+    "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:visitor": "cd frontend && npm run dev -- --port 3000",
+    "dev:staff": "cd frontend && npm run dev -- --port 3001",
+    "dev:frontend": "npm run dev:visitor",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "setup": "npm run install:all && echo '\n✅ Setup complete! Next steps:\n1. Copy backend/.env.example to backend/.env\n2. Edit backend/.env with your API keys\n3. Run: npm run dev\n'",
+    "build": "cd frontend && npm run build",
+    "test:backend": "cd backend && python -m pytest tests/ -v",
+    "test:frontend": "cd frontend && npm test",
+    "clean": "rm -rf node_modules frontend/node_modules frontend/.next backend/__pycache__ backend/.pytest_cache",
+    "kill-ports": "lsof -ti:3000,3001,8000 | xargs -r kill -9 || true",
+    "dev:clean": "npm run kill-ports && sleep 2 && npm run dev",
+    "test": "echo \"Run 'npm run test:backend' or 'npm run test:frontend' for specific tests\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

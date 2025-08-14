@@ -18,6 +18,9 @@ google-api-python-client>=2.108.0
 # HTTP client for Slack
 httpx>=0.25.0
 
+# Twilio Video
+twilio>=8.11.0
+
 # Configuration management
 pydantic-settings>=2.0.0
 

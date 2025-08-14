@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 try:
     from .api.conversation import health_router
     from .api.conversation import router as conversation_router
+    from .api.video_room import router as video_router
     from .config import settings
 except ImportError:
     # For direct execution
@@ -16,6 +17,7 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from app.api.conversation import health_router
     from app.api.conversation import router as conversation_router
+    from app.api.video_room import router as video_router
     from app.config import settings
 
 
@@ -117,6 +119,7 @@ async def global_exception_handler(request, exc):
 
 # Include routers
 app.include_router(conversation_router)
+app.include_router(video_router)
 app.include_router(health_router)
 
 # Add WebSocket endpoint for voice chat
@@ -139,6 +142,7 @@ async def root():
         "features": [
             "Voice conversation (WebSocket)",
             "Text conversation (REST API)",
+            "Video calls (Twilio)",
             "Real-time voice streaming",
             "Voice Activity Detection",
             "LangGraph conversation flow",
@@ -148,6 +152,7 @@ async def root():
         "endpoints": {
             "health": "/api/health",
             "conversations": "/api/conversations",
+            "video_calls": "/api/video",
             "voice_websocket": "/ws/voice/{session_id}",
             "docs": "/docs" if settings.debug else "disabled",
             "redoc": "/redoc" if settings.debug else "disabled"

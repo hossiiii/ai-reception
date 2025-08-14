@@ -16,6 +16,13 @@ class Settings(BaseSettings):
 
     # Slack Configuration
     slack_webhook_url: str
+    
+    # Twilio Video Configuration
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_api_key: str = ""
+    twilio_api_secret: str = ""
+    frontend_url: str = "http://localhost:3001"
 
     # Application Configuration
     environment: str = "development"

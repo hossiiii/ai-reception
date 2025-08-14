@@ -137,6 +137,46 @@ export interface ApiError extends Error {
   details?: string;
 }
 
+// Video Call Types
+export interface VideoRoomRequest {
+  visitor_name: string;
+  visitor_company?: string;
+  purpose?: string;
+}
+
+export interface VideoRoomResponse {
+  room_name: string;
+  room_sid: string;
+  access_token: string;
+  room_url: string;
+  created_at: string;
+  expires_at: string;
+  visitor_identity: string;
+  max_participants: number;
+  mock?: boolean;
+}
+
+export interface StaffTokenRequest {
+  room_name: string;
+  staff_name: string;
+}
+
+export interface StaffTokenResponse {
+  access_token: string;
+  identity: string;
+}
+
+export interface VideoRoomEndRequest {
+  room_name: string;
+}
+
+export interface VideoRoomEndResponse {
+  success: boolean;
+  message: string;
+  room_name: string;
+  ended_at: string;
+}
+
 // Configuration Types
 export interface ApiConfig {
   baseUrl: string;

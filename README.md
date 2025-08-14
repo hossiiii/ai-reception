@@ -14,8 +14,70 @@
 - **OpenAI API Key**
 - **Google Service Account Key** (Calendar API用)
 - **Slack Webhook URL**
+- **Twilio Video API** (ビデオ通話機能用)
 
 > **推奨**: Pythonパッケージのグローバルインストールを避けるため、仮想環境の使用を強く推奨します。
+
+### 🏃‍♂️ 超簡単スタート（推奨）
+
+```bash
+# 1. リポジトリをクローン
+git clone <repository-url>
+cd ai-reception
+
+# 2. 全ての依存関係をインストール
+npm run install:all
+
+# 3. 環境変数を設定 (backend/.env.example から backend/.env にコピーして編集)
+cp backend/.env.example backend/.env
+# .envファイルを編集してAPI キーを設定
+
+# 4. フロントエンド・バックエンドを同時起動
+npm run dev
+
+# ポート競合エラーが発生した場合
+npm run dev:clean  # 既存プロセスを停止してから起動
+```
+
+**起動確認:**
+- 👥 来訪者用Frontend: http://localhost:3000
+- 👨‍💼 スタッフ用Frontend: http://localhost:3001 (Slack通知リンク先)
+- 🔧 Backend API: http://localhost:8000
+- 📚 API Docs: http://localhost:8000/docs
+
+> **注意**: 開発環境では来訪者用(3000)とスタッフ用(3001)の2つのフロントエンドサーバーが同時起動します。これによりビデオ通話テストが可能になります。
+
+### 🎥 ビデオ通話テスト方法
+
+1. **来訪者として接続**: http://localhost:3000 で受付を開始
+2. **ビデオ通話開始**: 受付フローでビデオ通話を選択
+3. **スタッフとして参加**: Slack通知のリンク（http://localhost:3001/video-call?room=...）をクリック
+4. **双方向通話確認**: 両ブラウザで映像・音声が共有されることを確認
+
+> **開発時の利点**: 同一PC上で来訪者とスタッフの両方の画面を同時に確認できます。
+
+## 🛠️ トラブルシューティング
+
+### ポート競合エラーの解決
+
+```bash
+# エラー: "Address already in use" が発生した場合
+npm run dev:clean  # 既存プロセスを停止してクリーンスタート
+
+# 手動でポートを確認・停止する場合
+lsof -i :3000 -i :3001 -i :8000  # ポート使用状況確認
+npm run kill-ports               # 対象ポートのプロセスを強制終了
+```
+
+### 利用可能なコマンド
+
+```bash
+npm run dev        # 通常の開発サーバー起動
+npm run dev:clean  # ポートクリーンアップ後に起動（推奨）
+npm run setup      # 初回セットアップ
+npm run kill-ports # ポート競合解決
+npm run clean      # ビルドキャッシュクリア
+```
 
 ### 1. リポジトリのクローンとPython仮想環境のセットアップ
 
