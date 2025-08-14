@@ -26,13 +26,12 @@ class TwilioService:
             self.client = None
             print("⚠️  Twilio credentials not configured. Video calls will be mocked.")
 
-    async def create_room(self, visitor_name: str, visitor_company: str = None) -> dict[str, Any]:
+    async def create_room(self, visitor_name: str) -> dict[str, Any]:
         """
         Create a new video room for visitor reception
 
         Args:
             visitor_name: Name of the visitor
-            visitor_company: Company name of the visitor (optional)
 
         Returns:
             Dictionary containing room details and access token
@@ -88,7 +87,7 @@ class TwilioService:
                 raise Exception("Failed to create room with any configuration")
 
             # Generate access token for visitor
-            identity = f"{visitor_name}_{visitor_company or 'visitor'}"
+            identity = f"{visitor_name}_visitor"
             access_token = self._generate_access_token(identity, room_name)
 
             # Generate room URL for joining

@@ -50,14 +50,13 @@ async def create_video_room(
     try:
         # Create video room using Twilio service
         room_data = await twilio.create_room(
-            visitor_name=request.visitor_name,
-            visitor_company=request.visitor_company
+            visitor_name=request.visitor_name
         )
 
         # Prepare visitor info for Slack notification
         visitor_info: VisitorInfo = {
             'name': request.visitor_name,
-            'company': request.visitor_company or 'N/A',
+            'company': 'N/A',
             'visitor_type': 'video_call',
             'purpose': request.purpose,
             'contact_method': 'video_call'

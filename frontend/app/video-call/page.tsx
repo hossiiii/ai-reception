@@ -18,7 +18,9 @@ function VideoCallContent() {
   
   // State
   const [roomData, setRoomData] = useState<VideoRoomData | null>(null);
-  const [visitorInfo, setVisitorInfo] = useState({ name: '', company: '' });
+  // Fixed names for visitor and staff
+  const VISITOR_NAME = 'ゲスト';
+  const STAFF_NAME = 'スタッフ';
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<'form' | 'creating' | 'connected' | 'ending'>('form');
@@ -29,33 +31,22 @@ function VideoCallContent() {
   // Refs for cleanup
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Enhanced room parameter detection with debugging
+  // Get room parameter from URL
   const getRoomFromURL = (): string | null => {
     const roomParam = searchParams.get('room');
-    console.log('🔍 Video Call Debug - Room parameter extraction:');
-    console.log('  Current URL:', typeof window !== 'undefined' ? window.location.href : 'SSR (no window)');
-    console.log('  Search params string:', searchParams.toString());
-    console.log('  Raw room parameter:', roomParam);
-    
-    const trimmedRoom = roomParam && roomParam.trim() ? roomParam.trim() : null;
-    console.log('  Processed room parameter:', trimmedRoom);
-    return trimmedRoom;
+    return roomParam && roomParam.trim() ? roomParam.trim() : null;
   };
 
   // Check if we already have a room from URL params (staff joining existing room)
   useEffect(() => {
-    console.log('🔍 Video Call Debug - useEffect triggered');
     const roomName = getRoomFromURL();
     
     if (roomName) {
-      console.log('✅ Staff joining mode detected');
-      console.log('  Room to join:', roomName);
       // Staff member clicking Slack link to join existing room
       setIsStaffJoining(true);
       setExistingRoomName(roomName);
       setStage('form'); // Show form for staff to enter their name
     } else {
-      console.log('👤 Visitor creating new room mode');
       setIsStaffJoining(false);
       setExistingRoomName(null);
     }
@@ -70,31 +61,14 @@ function VideoCallContent() {
     };
   }, []);
   
-  // Handle form submission to create video room or join existing room as staff
-  const handleCreateRoom = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle button click to create video room or join existing room as staff
+  const handleJoinRoom = async () => {
     
-    if (!visitorInfo.name.trim()) {
-      setError('お名前を入力してください');
-      return;
-    }
-    
-    // Enhanced validation with debugging
     const roomFromURL = getRoomFromURL();
     const shouldJoinExisting = Boolean(roomFromURL);
     
-    console.log('🚀 Video Call Debug - Form submission:');
-    console.log('  Visitor name:', visitorInfo.name);
-    console.log('  Room from URL:', roomFromURL);
-    console.log('  Should join existing:', shouldJoinExisting);
-    console.log('  Current isStaffJoining state:', isStaffJoining);
-    console.log('  Current existingRoomName state:', existingRoomName);
-    
     // Defensive state correction
     if (shouldJoinExisting !== isStaffJoining) {
-      console.warn('⚠️ State mismatch detected, correcting...');
-      console.log('  Expected isStaffJoining:', shouldJoinExisting);
-      console.log('  Actual isStaffJoining:', isStaffJoining);
       setIsStaffJoining(shouldJoinExisting);
       setExistingRoomName(roomFromURL);
     }
@@ -106,9 +80,6 @@ function VideoCallContent() {
     try {
       if (shouldJoinExisting && roomFromURL) {
         // Staff joining existing room
-        console.log('📞 API Call: staff-token endpoint');
-        console.log(`  Staff ${visitorInfo.name} joining existing room: ${roomFromURL}`);
-        
         const response = await fetch('/api/video/staff-token', {
           method: 'POST',
           headers: {
@@ -116,7 +87,7 @@ function VideoCallContent() {
           },
           body: JSON.stringify({
             room_name: roomFromURL,  // Use room from URL directly
-            staff_name: visitorInfo.name
+            staff_name: STAFF_NAME
           }),
         });
         
@@ -145,17 +116,13 @@ function VideoCallContent() {
         
       } else {
         // Visitor creating new room
-        console.log('🏗️ API Call: create-room endpoint');
-        console.log(`  Visitor ${visitorInfo.name} creating new room`);
-        
         const response = await fetch('/api/video/create-room', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            visitor_name: visitorInfo.name,
-            visitor_company: visitorInfo.company || undefined,
+            visitor_name: VISITOR_NAME,
             purpose: 'video_reception'
           }),
         });
@@ -206,8 +173,8 @@ function VideoCallContent() {
     setError(errorMessage);
   };
   
-  // Render visitor information form
-  const renderForm = () => (
+  // Render join screen
+  const renderJoinScreen = () => (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
         {/* Header */}
@@ -228,20 +195,10 @@ function VideoCallContent() {
           
           <p className="text-gray-600">
             {isStaffJoining 
-              ? `ルーム「${existingRoomName}」に参加します。お名前を入力してください` 
-              : 'お名前と会社名を入力してください'
+              ? `ルーム「${existingRoomName}」に${STAFF_NAME}として参加します` 
+              : `${VISITOR_NAME}としてビデオ通話を開始します`
             }
           </p>
-          
-          {/* Debug info for development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              <div>🔍 Debug Info:</div>
-              <div>Mode: {isStaffJoining ? 'Staff Joining' : 'Visitor Creating'}</div>
-              <div>Room: {existingRoomName || 'N/A'}</div>
-              <div>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR (no window)'}</div>
-            </div>
-          )}
         </div>
         
         {/* Error Display */}
@@ -251,63 +208,27 @@ function VideoCallContent() {
           </div>
         )}
         
-        {/* Form */}
-        <form onSubmit={handleCreateRoom} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              {isStaffJoining ? 'スタッフ名' : 'お名前'} <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={visitorInfo.name}
-              onChange={(e) => setVisitorInfo(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder={isStaffJoining ? "山田スタッフ" : "山田太郎"}
-              required
-              disabled={isLoading}
-            />
-          </div>
+        {/* Join Button */}
+        <div className="space-y-3">
+          <button
+            onClick={handleJoinRoom}
+            disabled={isLoading}
+            className={`w-full ${isStaffJoining ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-4 px-6 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg`}
+          >
+            {isLoading 
+              ? (isStaffJoining ? 'ビデオルーム参加中...' : 'ビデオルーム作成中...') 
+              : (isStaffJoining ? 'ビデオ通話に参加' : 'ビデオ通話を開始')
+            }
+          </button>
           
-          {!isStaffJoining && (
-            <div>
-              <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">
-                会社名
-              </label>
-              <input
-                type="text"
-                id="company"
-                value={visitorInfo.company}
-                onChange={(e) => setVisitorInfo(prev => ({ ...prev, company: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="株式会社サンプル"
-                disabled={isLoading}
-              />
-            </div>
-          )}
-          
-          <div className="pt-4 space-y-2">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full ${isStaffJoining ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-3 px-4 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium`}
-            >
-              {isLoading 
-                ? (isStaffJoining ? 'ビデオルーム参加中...' : 'ビデオルーム作成中...') 
-                : (isStaffJoining ? 'ビデオ通話に参加' : 'ビデオ通話を開始')
-              }
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => router.push('/')}
-              disabled={isLoading}
-              className="w-full bg-gray-600 text-white py-3 px-4 rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              戻る
-            </button>
-          </div>
-        </form>
+          <button
+            onClick={() => router.push('/')}
+            disabled={isLoading}
+            className="w-full bg-gray-600 text-white py-3 px-4 rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          >
+            戻る
+          </button>
+        </div>
         
         {/* Info */}
         <div className={`mt-6 p-4 ${isStaffJoining ? 'bg-green-50' : 'bg-blue-50'} rounded-lg`}>
@@ -409,14 +330,14 @@ function VideoCallContent() {
   // Main render
   switch (stage) {
     case 'form':
-      return renderForm();
+      return renderJoinScreen();
       
     case 'creating':
       return renderCreating();
       
     case 'connected':
       if (!roomData) {
-        return renderForm();
+        return renderJoinScreen();
       }
       return (
         <VideoCallInterface
@@ -432,7 +353,7 @@ function VideoCallContent() {
       return renderEnding();
       
     default:
-      return renderForm();
+      return renderJoinScreen();
   }
 }
 

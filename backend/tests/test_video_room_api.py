@@ -20,8 +20,7 @@ def client():
 def sample_video_room_request():
     """Sample video room request data"""
     return {
-        "visitor_name": "Test User",
-        "visitor_company": "Test Corp",
+        "visitor_name": "ゲスト",
         "purpose": "video_reception"
     }
 
@@ -33,10 +32,10 @@ def mock_video_room_response():
         "room_name": "reception-12345678",
         "room_sid": "RMtest123",
         "access_token": "test_access_token",
-        "room_url": "http://localhost:3000/video-call?room=reception-12345678",
+        "room_url": "http://localhost:3001/video-call?room=reception-12345678",
         "created_at": "2023-01-01T12:00:00",
         "expires_at": "2023-01-01T13:00:00",
-        "visitor_identity": "Test User_Test Corp",
+        "visitor_identity": "ゲスト_visitor",
         "max_participants": 2
     }
 
@@ -102,13 +101,13 @@ class TestVideoRoomAPI:
         # Mock Twilio service
         mock_token_response = {
             "access_token": "staff_test_token",
-            "identity": "Staff_staff"
+            "identity": "スタッフ_staff"
         }
         mock_twilio.generate_staff_token = AsyncMock(return_value=mock_token_response)
         
         request_data = {
             "room_name": "reception-12345678",
-            "staff_name": "Staff"
+            "staff_name": "スタッフ"
         }
         
         response = client.post('/api/video/staff-token', json=request_data)
@@ -117,12 +116,12 @@ class TestVideoRoomAPI:
         assert response.status_code == 200
         data = response.json()
         assert data['access_token'] == "staff_test_token"
-        assert data['identity'] == "Staff_staff"
+        assert data['identity'] == "スタッフ_staff"
         
         # Verify service call
         mock_twilio.generate_staff_token.assert_called_once_with(
             room_name="reception-12345678",
-            staff_name="Staff"
+            staff_name="スタッフ"
         )
 
     async def test_generate_staff_token_missing_room(self, client):
