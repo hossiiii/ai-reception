@@ -5,6 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "concurrently --names \"visitor,staff\" --prefix-colors \"green,yellow\" \"npm run dev:visitor\" \"npm run dev:staff\"",
+    "dev:visitor": "next dev --port 3000",
+    "dev:staff": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -35,6 +38,7 @@
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^13.0.0",
     "@testing-library/user-event": "^14.0.0",
+    "concurrently": "^9.2.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "^15.0.0",
     "jest": "^29.0.0",
