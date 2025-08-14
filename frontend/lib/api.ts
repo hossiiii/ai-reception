@@ -3,6 +3,12 @@ import {
   MessageResponse,
   ConversationHistoryResponse,
   MessageRequest,
+  VideoRoomRequest,
+  VideoRoomResponse,
+  StaffTokenRequest,
+  StaffTokenResponse,
+  VideoRoomEndRequest,
+  VideoRoomEndResponse,
   ApiError,
   ApiConfig
 } from './types';
@@ -170,6 +176,86 @@ class ApiClient {
       return response;
     } catch (error) {
       console.error('Failed to end conversation:', error);
+      throw error;
+    }
+  }
+
+  // Video Call API Methods
+
+  /**
+   * Create a new video room for visitor reception
+   */
+  async createVideoRoom(visitorInfo: VideoRoomRequest): Promise<VideoRoomResponse> {
+    if (!visitorInfo.visitor_name.trim()) {
+      throw new Error('Visitor name is required') as ApiError;
+    }
+
+    try {
+      const response = await this.fetchWithRetry<VideoRoomResponse>(
+        this.getUrl('/api/video/create-room'),
+        {
+          method: 'POST',
+          body: JSON.stringify(visitorInfo),
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error('Failed to create video room:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate access token for staff member to join existing room
+   */
+  async generateStaffToken(request: StaffTokenRequest): Promise<StaffTokenResponse> {
+    if (!request.room_name.trim()) {
+      throw new Error('Room name is required') as ApiError;
+    }
+
+    if (!request.staff_name.trim()) {
+      throw new Error('Staff name is required') as ApiError;
+    }
+
+    try {
+      const response = await this.fetchWithRetry<StaffTokenResponse>(
+        this.getUrl('/api/video/staff-token'),
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error('Failed to generate staff token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * End an active video room
+   */
+  async endVideoRoom(roomName: string): Promise<VideoRoomEndResponse> {
+    if (!roomName.trim()) {
+      throw new Error('Room name is required') as ApiError;
+    }
+
+    try {
+      const request: VideoRoomEndRequest = { room_name: roomName };
+      
+      const response = await this.fetchWithRetry<VideoRoomEndResponse>(
+        this.getUrl('/api/video/end-room'),
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error('Failed to end video room:', error);
       throw error;
     }
   }

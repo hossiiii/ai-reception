@@ -34,7 +34,7 @@ export default function HomePage() {
           </p>
 
           {/* Features list */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8 lg:gap-10 mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-10 mb-10">
             <div className="flex items-start space-x-4 md:space-x-6">
               <div className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 bg-green-100 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 md:w-6 md:h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,6 +82,30 @@ export default function HomePage() {
                 <p className="text-base text-gray-600">予約、営業、配達に応じた適切な対応</p>
               </div>
             </div>
+
+            <div className="flex items-start space-x-4 md:space-x-6">
+              <div className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 md:w-6 md:h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">ビデオ通話対応</h3>
+                <p className="text-base text-gray-600">リモートでの直接対応が可能</p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-4 md:space-x-6">
+              <div className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 md:w-6 md:h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">24時間対応</h3>
+                <p className="text-base text-gray-600">いつでも利用可能なタブレット受付</p>
+              </div>
+            </div>
           </div>
 
           {/* Action buttons */}
@@ -106,6 +130,25 @@ export default function HomePage() {
               </svg>
             </Link>
 
+            <Link
+              href="/video-call"
+              className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-white bg-green-600 border border-transparent rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 group"
+            >
+              <span>ビデオ通話で受付</span>
+              <svg
+                className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+            </Link>
           </div>
 
           {/* Status indicator */}
