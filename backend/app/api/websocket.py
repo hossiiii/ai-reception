@@ -65,7 +65,7 @@ async def handle_voice_websocket(
     session_id: str
 ):
     """Handle voice WebSocket connection and audio streaming"""
-    
+
     # Get the WebSocket manager instance directly
     manager = get_voice_ws_manager()
 
@@ -117,36 +117,36 @@ async def handle_voice_websocket(
                 if "bytes" in data:
                     # Handle binary audio data
                     audio_chunk = data["bytes"]
-                    
+
                     # Check if we're waiting for a complete audio blob
                     if awaiting_audio_blob and len(audio_chunk) > 0:
                         print(f"📦 Received complete audio blob: {len(audio_chunk)} bytes")
                         awaiting_audio_blob = False
-                        
+
                         # Process the complete audio
                         await manager.broadcast_to_session(session_id, "processing", {
                             "message": "音声を処理中..."
                         })
-                        
+
                         # Convert audio to text - the blob should be a complete WebM file
                         transcribed_text = await manager.audio_service.process_audio_input(audio_chunk)
-                        
+
                         if transcribed_text and transcribed_text.strip():
                             print(f"📝 Transcribed: {transcribed_text}")
-                            
+
                             # Send transcription to client
                             await manager.broadcast_to_session(session_id, "transcription", {
                                 "text": transcribed_text
                             })
-                            
+
                             # Process message through Step1 LangGraph system
                             response = await manager.graph_manager.send_message(session_id, transcribed_text)
-                            
+
                             if response["success"]:
                                 # Generate audio response
                                 response_text = response["message"]
                                 response_audio = await manager.audio_service.generate_audio_output(response_text)
-                                
+
                                 # Send voice response
                                 await manager.broadcast_to_session(session_id, "voice_response", {
                                     "text": response_text,
@@ -156,7 +156,7 @@ async def handle_voice_websocket(
                                     "calendar_result": response.get("calendar_result"),
                                     "completed": response.get("completed", False)
                                 })
-                        
+
                         # Send ready status
                         await manager.broadcast_to_session(session_id, "ready", {
                             "message": "Ready for next input"
@@ -283,20 +283,20 @@ async def handle_voice_websocket(
                             text_input = message.get("text", "")
                             if text_input:
                                 print(f"📝 Direct text input received: {text_input}")
-                                
+
                                 # Send processing status
                                 await manager.broadcast_to_session(session_id, "processing", {
                                     "message": "テキストを処理中..."
                                 })
-                                
+
                                 # Process message through Step1 LangGraph system
                                 response = await manager.graph_manager.send_message(session_id, text_input)
-                                
+
                                 if response["success"]:
                                     # Generate audio response
                                     response_text = response["message"]
                                     response_audio = await manager.audio_service.generate_audio_output(response_text)
-                                    
+
                                     # Send voice response
                                     await manager.broadcast_to_session(session_id, "voice_response", {
                                         "text": response_text,
@@ -306,7 +306,7 @@ async def handle_voice_websocket(
                                         "calendar_result": response.get("calendar_result"),
                                         "completed": response.get("completed", False)
                                     })
-                                    
+
                                     # Auto-end if conversation is completed
                                     if response.get("completed"):
                                         await manager.broadcast_to_session(session_id, "conversation_completed", {
@@ -317,14 +317,14 @@ async def handle_voice_websocket(
                                     # Send error response
                                     error_text = response.get("error", "処理中にエラーが発生しました。もう一度お試しください。")
                                     error_audio = await manager.audio_service.generate_audio_output(error_text)
-                                    
+
                                     await manager.broadcast_to_session(session_id, "voice_response", {
                                         "text": error_text,
                                         "audio": base64.b64encode(error_audio).decode() if error_audio else "",
                                         "step": "error",
                                         "error": response.get("error")
                                     })
-                                
+
                                 # Send ready status
                                 await manager.broadcast_to_session(session_id, "ready", {
                                     "message": "Ready for next input"
@@ -333,31 +333,31 @@ async def handle_voice_websocket(
                             # Force end speech and process buffer
                             if is_collecting_speech and len(audio_buffer) > 0:
                                 print(f"🔚 Force ending speech ({len(audio_buffer)} bytes)")
-                                
+
                                 # Send processing status
                                 await manager.broadcast_to_session(session_id, "processing", {
                                     "message": "音声を処理中..."
                                 })
-                                
+
                                 # Process the collected audio
                                 transcribed_text = await manager.audio_service.process_audio_input(bytes(audio_buffer))
-                                
+
                                 if transcribed_text and transcribed_text.strip():
                                     print(f"📝 Transcribed: {transcribed_text}")
-                                    
+
                                     # Send transcription to client
                                     await manager.broadcast_to_session(session_id, "transcription", {
                                         "text": transcribed_text
                                     })
-                                    
+
                                     # Process message through Step1 LangGraph system
                                     response = await manager.graph_manager.send_message(session_id, transcribed_text)
-                                    
+
                                     if response["success"]:
                                         # Generate audio response
                                         response_text = response["message"]
                                         response_audio = await manager.audio_service.generate_audio_output(response_text)
-                                        
+
                                         # Send voice response
                                         await manager.broadcast_to_session(session_id, "voice_response", {
                                             "text": response_text,
@@ -367,12 +367,12 @@ async def handle_voice_websocket(
                                             "calendar_result": response.get("calendar_result"),
                                             "completed": response.get("completed", False)
                                         })
-                                
+
                                 # Reset buffer and state
                                 audio_buffer.clear()
                                 is_collecting_speech = False
                                 vad.reset_state()
-                                
+
                                 # Send ready status
                                 await manager.broadcast_to_session(session_id, "ready", {
                                     "message": "Ready for next input"

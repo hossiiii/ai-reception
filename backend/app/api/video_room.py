@@ -40,10 +40,10 @@ async def create_video_room(
 ) -> VideoRoomResponse:
     """
     Create a new video room for visitor reception
-    
+
     Args:
         request: Video room creation request
-        
+
     Returns:
         VideoRoomResponse: Room details and access token
     """
@@ -90,10 +90,10 @@ async def generate_staff_token(
 ) -> StaffTokenResponse:
     """
     Generate access token for staff member to join existing room
-    
+
     Args:
         request: Staff token generation request
-        
+
     Returns:
         StaffTokenResponse: Access token for staff member
     """
@@ -136,10 +136,10 @@ async def end_video_room(
 ) -> dict[str, Any]:
     """
     End an active video room
-    
+
     Args:
         request: Room end request
-        
+
     Returns:
         Dict containing success status
     """

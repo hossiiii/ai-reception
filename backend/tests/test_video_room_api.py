@@ -2,12 +2,12 @@
 Test cases for video room API endpoints
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.video_room import VideoRoomRequest
 
 
 @pytest.fixture
@@ -49,20 +49,20 @@ class TestVideoRoomAPI:
         """Test successful room creation"""
         # Mock Twilio service
         mock_twilio.create_room = AsyncMock(return_value=mock_video_room_response)
-        
+
         # Mock Slack service
         mock_slack.send_video_call_notification = AsyncMock(return_value=True)
-        
+
         # Make request
         response = client.post('/api/video/create-room', json=sample_video_room_request)
-        
+
         # Assertions
         assert response.status_code == 200
         data = response.json()
         assert data['room_name'] == mock_video_room_response['room_name']
         assert data['access_token'] == mock_video_room_response['access_token']
         assert data['room_url'] == mock_video_room_response['room_url']
-        
+
         # Verify service calls
         mock_twilio.create_room.assert_called_once_with(
             visitor_name="Test User",
@@ -76,9 +76,9 @@ class TestVideoRoomAPI:
             "visitor_company": "Test Corp",
             "purpose": "video_reception"
         }
-        
+
         response = client.post('/api/video/create-room', json=request_data)
-        
+
         # Should return validation error
         assert response.status_code == 422
 
@@ -89,9 +89,9 @@ class TestVideoRoomAPI:
             "visitor_company": "Test Corp",
             "purpose": "video_reception"
         }
-        
+
         response = client.post('/api/video/create-room', json=request_data)
-        
+
         # Should return validation error
         assert response.status_code == 422
 
@@ -104,20 +104,20 @@ class TestVideoRoomAPI:
             "identity": "スタッフ_staff"
         }
         mock_twilio.generate_staff_token = AsyncMock(return_value=mock_token_response)
-        
+
         request_data = {
             "room_name": "reception-12345678",
             "staff_name": "スタッフ"
         }
-        
+
         response = client.post('/api/video/staff-token', json=request_data)
-        
+
         # Assertions
         assert response.status_code == 200
         data = response.json()
         assert data['access_token'] == "staff_test_token"
         assert data['identity'] == "スタッフ_staff"
-        
+
         # Verify service call
         mock_twilio.generate_staff_token.assert_called_once_with(
             room_name="reception-12345678",
@@ -129,9 +129,9 @@ class TestVideoRoomAPI:
         request_data = {
             "staff_name": "Staff"
         }
-        
+
         response = client.post('/api/video/staff-token', json=request_data)
-        
+
         # Should return validation error
         assert response.status_code == 422
 
@@ -140,20 +140,20 @@ class TestVideoRoomAPI:
         """Test successful room ending"""
         # Mock Twilio service
         mock_twilio.end_room = AsyncMock(return_value=True)
-        
+
         request_data = {
             "room_name": "reception-12345678"
         }
-        
+
         response = client.post('/api/video/end-room', json=request_data)
-        
+
         # Assertions
         assert response.status_code == 200
         data = response.json()
         assert data['success'] is True
         assert data['room_name'] == "reception-12345678"
         assert 'ended_at' in data
-        
+
         # Verify service call
         mock_twilio.end_room.assert_called_once_with("reception-12345678")
 
@@ -162,22 +162,22 @@ class TestVideoRoomAPI:
         """Test room ending failure"""
         # Mock Twilio service failure
         mock_twilio.end_room = AsyncMock(return_value=False)
-        
+
         request_data = {
             "room_name": "reception-12345678"
         }
-        
+
         response = client.post('/api/video/end-room', json=request_data)
-        
+
         # Should return error
         assert response.status_code == 500
 
     async def test_end_room_missing_name(self, client):
         """Test room ending with missing room name"""
         request_data = {}
-        
+
         response = client.post('/api/video/end-room', json=request_data)
-        
+
         # Should return validation error
         assert response.status_code == 422
 

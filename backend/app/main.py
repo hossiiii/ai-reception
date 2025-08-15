@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     required_vars = [
         "openai_api_key",
         "google_service_account_key",
-        "slack_webhook_url",
+        "slack_bot_token",
         "meeting_room_calendar_ids"
     ]
 
@@ -64,7 +64,7 @@ app = FastAPI(
     title="AI Reception System API",
     description="""
     Voice-enabled AI reception system for visitor management.
-    
+
     Features:
     - Voice conversation using OpenAI Whisper + TTS
     - Real-time WebSocket voice streaming
@@ -92,7 +92,7 @@ app.add_middleware(
 )
 
 # Log CORS configuration
-print(f"🔒 CORS Configuration:")
+print("🔒 CORS Configuration:")
 print(f"   Environment: {settings.environment}")
 print(f"   Allowed Origins: {settings.cors_origins}")
 print(f"   Allow Credentials: {settings.cors_allow_credentials}")
@@ -124,7 +124,9 @@ app.include_router(health_router)
 
 # Add WebSocket endpoint for voice chat
 from fastapi import WebSocket
+
 from .api.websocket import handle_voice_websocket
+
 
 @app.websocket("/ws/voice/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):

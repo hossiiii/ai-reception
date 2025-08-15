@@ -5,7 +5,6 @@ from typing import Protocol
 from openai import AsyncOpenAI
 
 from ..config import settings
-from .connection_pool import get_connection_pool
 from .simple_audio_cache import get_audio_cache
 
 
@@ -27,7 +26,7 @@ class AudioService:
     def __init__(self):
         # Initialize audio cache
         self.audio_cache = get_audio_cache()
-        
+
         # Use same settings pattern as Step1's TextService
         if settings.openai_api_key and settings.openai_api_key.startswith('sk-'):
             # Use individual OpenAI client with optimized timeout
@@ -36,7 +35,7 @@ class AudioService:
                 timeout=5.0  # Reduced timeout for better performance
             )
             self.use_mock = False
-            print(f"✅ AudioService initialized with OpenAI API and cache")
+            print("✅ AudioService initialized with OpenAI API and cache")
         else:
             self.openai_client = None
             self.use_mock = True
@@ -125,12 +124,12 @@ class AudioService:
 
     async def generate_audio_output(self, text: str, voice: str = "alloy") -> bytes:
         """Step2: Convert text to audio using OpenAI TTS API with caching"""
-        
+
         # Check cache first
         cached_audio = self.audio_cache.get(text, voice)
         if cached_audio:
             return cached_audio
-        
+
         if self.use_mock:
             # Add realistic delay to simulate API call
             await asyncio.sleep(0.6)
@@ -151,7 +150,7 @@ class AudioService:
 
             audio_data = response.content
             print(f"✅ Audio generated ({len(audio_data)} bytes)")
-            
+
             # Store in cache
             self.audio_cache.set(text, audio_data, voice)
 

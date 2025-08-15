@@ -2,6 +2,7 @@
 
 import pytest
 
+
 def pytest_addoption(parser):
     """カスタムpytestオプション"""
     parser.addoption(
