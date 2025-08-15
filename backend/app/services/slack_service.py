@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -14,6 +15,11 @@ class SlackService:
     def __init__(self):
         self.webhook_url = settings.slack_webhook_url
         self.timeout = 10.0
+
+    def _get_jst_timestamp(self) -> str:
+        """Get current timestamp in JST (Japan Standard Time)"""
+        jst = ZoneInfo("Asia/Tokyo")
+        return datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
     async def send_visitor_notification(
         self,
@@ -66,7 +72,7 @@ class SlackService:
                         },
                         {
                             "type": "mrkdwn",
-                            "text": f"*発生時刻:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                            "text": f"*発生時刻:*\n{self._get_jst_timestamp()}"
                         }
                     ]
                 },
@@ -137,7 +143,7 @@ class SlackService:
                         },
                         {
                             "type": "mrkdwn",
-                            "text": f"*開始時刻:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                            "text": f"*開始時刻:*\n{self._get_jst_timestamp()}"
                         }
                     ]
                 },
@@ -220,7 +226,7 @@ class SlackService:
                     },
                     {
                         "type": "mrkdwn",
-                        "text": f"*対応時刻:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                        "text": f"*対応時刻:*\n{self._get_jst_timestamp()}"
                     }
                 ]
             }
