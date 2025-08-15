@@ -1,11 +1,11 @@
 """Test delivery shortcut flow with AI detection"""
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.agents.nodes import ReceptionNodes
 from app.models.conversation import ConversationState
-from app.models.visitor import VisitorInfo
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ class TestDeliveryShortcut:
             ("宅配便です", {"company": "", "purpose": "宅配"}, True),
             ("日本郵便です、郵便物です", {"company": "日本郵便", "purpose": "郵便物配達"}, True),
         ]
-        
+
         for input_text, extracted_info, expected in test_cases:
             result = await reception_nodes._ai_is_delivery_visitor(input_text, extracted_info)
             print(f"Input: '{input_text}' -> AI Detection: {result} (expected: {expected})")
@@ -45,7 +45,7 @@ class TestDeliveryShortcut:
             ("打ち合わせです", {"company": "", "purpose": "打ち合わせ"}, False),
             ("面接に来ました", {"company": "求職者", "purpose": "面接"}, False),
         ]
-        
+
         for input_text, extracted_info, expected in test_cases:
             result = await reception_nodes._ai_is_delivery_visitor(input_text, extracted_info)
             print(f"Input: '{input_text}' -> AI Detection: {result} (expected: {expected})")
@@ -58,7 +58,7 @@ class TestDeliveryShortcut:
         mock_slack = AsyncMock()
         mock_slack.send_visitor_notification = AsyncMock(return_value=None)
         reception_nodes.slack_service = mock_slack
-        
+
         # Initial state after greeting
         state: ConversationState = {
             "messages": [HumanMessage(content="ヤマトです")],
@@ -68,21 +68,21 @@ class TestDeliveryShortcut:
             "error_count": 0,
             "session_id": "test-yamato"
         }
-        
+
         # Execute collect_all_info_node (should trigger delivery shortcut)
         result = await reception_nodes.collect_all_info_node(state)
-        
+
         # Verify delivery shortcut was triggered
         assert result["visitor_info"]["visitor_type"] == "delivery"
-        assert result["visitor_info"]["confirmed"] == True
+        assert result["visitor_info"]["confirmed"]
         assert result["current_step"] == "complete"
-        
+
         # Verify company name is set appropriately
         assert "ヤマト" in result["visitor_info"]["company"] or result["visitor_info"]["company"] == "配送業者"
-        
+
         # Verify Slack notification was sent
         mock_slack.send_visitor_notification.assert_called_once()
-        
+
         # Check message content
         assert len(result["messages"]) > 0
         last_message = result["messages"][-1]
@@ -98,7 +98,7 @@ class TestDeliveryShortcut:
         mock_slack = AsyncMock()
         mock_slack.send_visitor_notification = AsyncMock(return_value=None)
         reception_nodes.slack_service = mock_slack
-        
+
         state: ConversationState = {
             "messages": [HumanMessage(content="佐川急便です、お荷物をお届けに参りました")],
             "visitor_info": {},
@@ -107,13 +107,13 @@ class TestDeliveryShortcut:
             "error_count": 0,
             "session_id": "test-sagawa"
         }
-        
+
         result = await reception_nodes.collect_all_info_node(state)
-        
+
         # Verify delivery shortcut
         assert result["visitor_info"]["visitor_type"] == "delivery"
         assert result["current_step"] == "complete"
-        
+
         # Verify Slack notification
         mock_slack.send_visitor_notification.assert_called_once()
 
@@ -123,7 +123,7 @@ class TestDeliveryShortcut:
         mock_slack = AsyncMock()
         mock_slack.send_visitor_notification = AsyncMock(return_value=None)
         reception_nodes.slack_service = mock_slack
-        
+
         state: ConversationState = {
             "messages": [HumanMessage(content="Amazon delivery")],
             "visitor_info": {},
@@ -132,9 +132,9 @@ class TestDeliveryShortcut:
             "error_count": 0,
             "session_id": "test-amazon"
         }
-        
+
         result = await reception_nodes.collect_all_info_node(state)
-        
+
         assert result["visitor_info"]["visitor_type"] == "delivery"
         assert result["current_step"] == "complete"
         mock_slack.send_visitor_notification.assert_called_once()
@@ -145,18 +145,18 @@ class TestDeliveryShortcut:
         state: ConversationState = {
             "messages": [HumanMessage(content="山田太郎です、株式会社テストから会議で来ました")],
             "visitor_info": {},
-            "current_step": "collect_all_info", 
+            "current_step": "collect_all_info",
             "calendar_result": None,
             "error_count": 0,
             "session_id": "test-normal"
         }
-        
+
         result = await reception_nodes.collect_all_info_node(state)
-        
+
         # Should go to normal confirmation flow, not shortcut
         assert result["current_step"] == "confirmation_response"
         assert result["visitor_info"].get("visitor_type") != "delivery"
-        
+
         # Should generate confirmation message
         assert len(result["messages"]) > 0
         last_message = result["messages"][-1]
@@ -171,13 +171,13 @@ class TestDeliveryShortcut:
         # Mock TextService to raise an exception
         original_generate_output = reception_nodes.text_service.generate_output
         reception_nodes.text_service.generate_output = AsyncMock(side_effect=Exception("API Error"))
-        
+
         try:
             result = await reception_nodes._ai_is_delivery_visitor("ヤマトです", {"company": "ヤマト運輸"})
-            
+
             # Should return False on error (safe side)
-            assert result == False
-            
+            assert not result
+
         finally:
             # Restore original method
             reception_nodes.text_service.generate_output = original_generate_output
@@ -189,10 +189,10 @@ class TestDeliveryShortcut:
         mock_slack = AsyncMock()
         mock_slack.send_visitor_notification = AsyncMock(return_value=None)
         reception_nodes.slack_service = mock_slack
-        
+
         # Mock TextService to fail for message generation but succeed for delivery detection
         original_generate_output = reception_nodes.text_service.generate_output
-        
+
         async def mock_generate_output(task_type, context):
             if "配達業者の早期判定" in task_type:
                 return "yes"
@@ -200,9 +200,9 @@ class TestDeliveryShortcut:
                 raise Exception("Message generation failed")
             else:
                 return await original_generate_output(task_type, context)
-        
+
         reception_nodes.text_service.generate_output = AsyncMock(side_effect=mock_generate_output)
-        
+
         try:
             state: ConversationState = {
                 "messages": [HumanMessage(content="ヤマトです")],
@@ -212,13 +212,13 @@ class TestDeliveryShortcut:
                 "error_count": 0,
                 "session_id": "test-fallback"
             }
-            
+
             result = await reception_nodes.collect_all_info_node(state)
-            
+
             # Should still work with fallback message
             assert result["visitor_info"]["visitor_type"] == "delivery"
             assert result["current_step"] == "complete"
-            
+
             # Should have fallback delivery message
             assert len(result["messages"]) > 0
             last_message = result["messages"][-1]
@@ -226,6 +226,6 @@ class TestDeliveryShortcut:
             message_content = last_message.content
             assert "配達" in message_content
             assert "ありがとう" in message_content
-            
+
         finally:
             reception_nodes.text_service.generate_output = original_generate_output

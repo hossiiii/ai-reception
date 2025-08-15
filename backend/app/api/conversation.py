@@ -69,7 +69,7 @@ async def start_conversation(
     manager: ReceptionGraphManager = Depends(get_graph_manager)
 ) -> ConversationStartResponse:
     """Start a new conversation session
-    
+
     Returns:
         ConversationStartResponse: Initial greeting and session info
     """
@@ -96,11 +96,11 @@ async def send_message(
     manager: ReceptionGraphManager = Depends(get_graph_manager)
 ) -> MessageResponse:
     """Send a message to an existing conversation
-    
+
     Args:
         session_id: The conversation session ID
         request: Message request containing the message text
-        
+
     Returns:
         MessageResponse: AI response and conversation state
     """
@@ -153,10 +153,10 @@ async def get_conversation_history(
     manager: ReceptionGraphManager = Depends(get_graph_manager)
 ) -> ConversationHistoryResponse:
     """Get conversation history for a session
-    
+
     Args:
         session_id: The conversation session ID
-        
+
     Returns:
         ConversationHistoryResponse: Complete conversation history
     """
@@ -202,10 +202,10 @@ async def end_conversation(
     manager: ReceptionGraphManager = Depends(get_graph_manager)
 ) -> dict[str, str]:
     """End a conversation session and clean up resources
-    
+
     Args:
         session_id: The conversation session ID
-        
+
     Returns:
         Dict: Success message
     """
@@ -239,10 +239,10 @@ async def end_conversation(
 @router.get("/", response_model=list[str])
 async def list_active_sessions() -> list[str]:
     """List active conversation sessions
-    
+
     Note: This is a placeholder. In production, you'd want to implement
     proper session tracking and cleanup.
-    
+
     Returns:
         List[str]: List of active session IDs
     """

@@ -6,10 +6,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from ..models.conversation import ConversationState
 from ..models.visitor import ConversationLog, VisitorInfo, VisitorType
+from ..services.async_notification_manager import async_notification_manager
 from ..services.calendar_service import CalendarService
 from ..services.slack_service import SlackService
 from ..services.text_service import TextService
-from ..services.background_tasks import background_task_manager
 from .templates import ResponseTemplates
 
 
@@ -23,6 +23,21 @@ class ReceptionNodes:
 
     async def greeting_node(self, state: ConversationState) -> ConversationState:
         """Template-based initial greeting to visitor - collect all info at once"""
+
+        # Start async notification system for this session
+        session_id = state.get("session_id", "unknown")
+        await async_notification_manager.start_processor()
+        await async_notification_manager.send_session_start_notification(
+            session_id,
+            "来客者が到着し、挨拶を開始しました"
+        )
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "greeting",
+            additional_info="初期挨拶とともに情報収集を開始"
+        )
 
         # Use template instead of AI generation for consistent and fast response
         greeting_message = ResponseTemplates.GREETING
@@ -48,12 +63,12 @@ class ReceptionNodes:
 
         # Extract visitor info using the existing method
         visitor_info = self._extract_visitor_info(last_message.content)
-        
+
         # Check if we have both name and company
         if not visitor_info["name"] or not visitor_info["company"]:
             # Missing information - ask for more details
             ai_message = AIMessage(content="申し訳ございませんが、会社名とお名前の両方を教えていただけますでしょうか？例：山田太郎、株式会社テストです。")
-            
+
             return {
                 **state,
                 "messages": state.get("messages", []) + [ai_message],
@@ -81,6 +96,15 @@ class ReceptionNodes:
 
     async def collect_all_info_node(self, state: ConversationState) -> ConversationState:
         """Collect visitor company, name and purpose information using AI"""
+        session_id = state.get("session_id", "unknown")
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "collecting_info",
+            additional_info="来客者から基本情報を収集中"
+        )
+
         last_message = state["messages"][-1]
 
         if not isinstance(last_message, HumanMessage):
@@ -106,10 +130,10 @@ class ReceptionNodes:
 
         # 🚚 Check for delivery shortcut - AI-powered early detection
         is_delivery = await self._ai_is_delivery_visitor(last_message.content, merged_visitor_info)
-        
+
         if is_delivery:
             print(f"🚚 Delivery shortcut triggered for: {last_message.content}")
-            
+
             # Set minimal required info for delivery
             delivery_visitor_info = {
                 "company": merged_visitor_info.get("company") or "配送業者",
@@ -119,15 +143,15 @@ class ReceptionNodes:
                 "confirmed": True,  # Skip confirmation for delivery
                 "confidence": "high"
             }
-            
+
             # Use template for delivery guidance message
             delivery_message = ResponseTemplates.format_template(
                 ResponseTemplates.DELIVERY_GUIDANCE,
                 company=delivery_visitor_info.get('company', '配送業者')
             )
-            
+
             ai_message = AIMessage(content=delivery_message)
-            
+
             # Execute delivery-specific guidance immediately
             updated_state = {
                 **state,
@@ -135,11 +159,11 @@ class ReceptionNodes:
                 "visitor_info": delivery_visitor_info,
                 "current_step": "guidance"
             }
-            
+
             # Use dedicated delivery guidance node
             print("🔄 Auto-proceeding to delivery_guidance_node")
             guidance_result = await self.delivery_guidance_node(updated_state)
-            
+
             # Then send Slack notification
             if guidance_result.get("current_step") == "complete":
                 print("✅ Auto-proceeding to Slack notification for delivery")
@@ -170,7 +194,7 @@ class ReceptionNodes:
             if merged_visitor_info.get("purpose"):
                 collected_info.append(f"訪問目的: {merged_visitor_info['purpose']}")
 
-            context = f"""
+            f"""
 会話履歴:
 {conversation_history}
 
@@ -227,7 +251,7 @@ class ReceptionNodes:
 
                 if collected_info_str:
                     ai_message = AIMessage(content=f"""申し訳ございません。
-                    
+
 取得済み情報：{collected_info_str.strip()}
 不足している情報：{', '.join(missing_info)}
 
@@ -247,11 +271,17 @@ class ReceptionNodes:
                 "error_count": state.get("error_count", 0) + 1
             }
 
+        # All information collected - send visitor info notification
+        await async_notification_manager.send_visitor_info_notification(
+            session_id,
+            merged_visitor_info
+        )
+
         # All information collected - generate confirmation message
-        user_message = state["messages"][-1]
+        state["messages"][-1]
 
         # Generate confirmation message
-        context = f"""
+        f"""
 収集した訪問者情報:
 - 会社名: {merged_visitor_info.get('company', '不明')}
 - お名前: {merged_visitor_info.get('name', '不明')}
@@ -288,7 +318,7 @@ class ReceptionNodes:
             confirmation_message = f"""以下の情報で間違いございませんでしょうか？
 
 ・会社名：{merged_visitor_info.get('company', '不明')}
-・お名前：{merged_visitor_info.get('name', '不明')}  
+・お名前：{merged_visitor_info.get('name', '不明')}
 ・訪問目的：{merged_visitor_info.get('purpose', '不明')}
 
 情報が正しい場合は「はい」、修正が必要な場合は「いいえ」とお答えください。
@@ -306,7 +336,16 @@ class ReceptionNodes:
 
     async def confirm_info_node(self, state: ConversationState) -> ConversationState:
         """Confirm all visitor information with user"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state.get("visitor_info", {})
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "confirming_info",
+            visitor_info=visitor_info,
+            additional_info="収集した情報の確認を実施中"
+        )
 
         # If this is the first time reaching confirmation, show the collected info
         # Check if the last message was from collection or if this is initial confirmation display
@@ -319,7 +358,7 @@ class ReceptionNodes:
 
         if is_initial_confirmation:
             # Generate confirmation message showing all collected information
-            context = f"""
+            f"""
 収集した訪問者情報:
 - 会社名: {visitor_info.get('company', '不明')}
 - お名前: {visitor_info.get('name', '不明')}
@@ -356,7 +395,7 @@ class ReceptionNodes:
                 confirmation_message = f"""以下の情報で間違いございませんでしょうか？
 
 ・会社名：{visitor_info.get('company', '不明')}
-・お名前：{visitor_info.get('name', '不明')}  
+・お名前：{visitor_info.get('name', '不明')}
 ・訪問目的：{visitor_info.get('purpose', '不明')}
 
 情報が正しい場合は「はい」、修正が必要な場合は「いいえ」とお答えください。
@@ -396,10 +435,10 @@ class ReceptionNodes:
 
                 # Determine visitor type from purpose using AI for better accuracy
                 purpose = visitor_info.get('purpose', '')
-                
+
                 # Use AI to determine visitor type with better context understanding
                 visitor_type = await self._ai_determine_visitor_type(purpose, visitor_info)
-                
+
                 visitor_info["visitor_type"] = visitor_type
 
                 print(f"🎯 Auto-determined visitor type: {visitor_type} from purpose: {purpose}")
@@ -477,7 +516,7 @@ class ReceptionNodes:
                 visitor_info.update(corrected_info)
 
                 # Generate updated confirmation message with corrected info
-                context = f"""
+                f"""
 修正後の訪問者情報:
 - 会社名: {visitor_info.get('company', '不明')}
 - お名前: {visitor_info.get('name', '不明')}
@@ -514,7 +553,7 @@ class ReceptionNodes:
                     reconfirmation_message = f"""修正いたしました。以下の情報で間違いございませんでしょうか？
 
 ・会社名：{visitor_info.get('company', '不明')}
-・お名前：{visitor_info.get('name', '不明')}  
+・お名前：{visitor_info.get('name', '不明')}
 ・訪問目的：{visitor_info.get('purpose', '不明')}
 
 情報が正しい場合は「はい」、さらに修正が必要な場合は修正内容をお教えください。"""
@@ -565,22 +604,6 @@ class ReceptionNodes:
         conversation_history = self._format_conversation_history(state.get("messages", []))
 
         # Use AI to generate a natural question about visit purpose
-        context = f"""
-会話履歴:
-{conversation_history}
-
-訪問者情報:
-- 会社名: {company}
-- お名前: {name}
-
-この会話の文脈を理解した上で、訪問者の来訪目的を自然に質問してください。
-
-重要：
-- 選択肢は提示せず、自然な会話形式で目的を聞く
-- 「どのようなご用件でしょうか？」のような自然な質問にする
-- 訪問者が自由に答えられる形にする
-- 予約、営業、配達のいずれかを判定できるよう、オープンな質問をする
-"""
 
         try:
             # Generate AI question for visitor type
@@ -656,7 +679,7 @@ class ReceptionNodes:
 
 判定基準：
 - "appointment": 予約済み、会議、打ち合わせ、アポイントメント等
-- "sales": 営業、商談、提案、新規開拓等  
+- "sales": 営業、商談、提案、新規開拓等
 - "delivery": 配達、荷物、宅配、郵便物等
 
 response_messageは次のステップへの自然な案内を含めてください：
@@ -679,7 +702,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                 result = json.loads(json_match.group())
                 visitor_type = result.get("visitor_type", "appointment")
                 response_message = result.get("response_message", "承知いたしました。")
-                confidence = result.get("confidence", "medium")
+                result.get("confidence", "medium")
 
                 # Update visitor info
                 visitor_info["visitor_type"] = visitor_type
@@ -754,8 +777,17 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
     async def check_appointment_node(self, state: ConversationState) -> ConversationState:
         """Check calendar for appointments"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state.get("visitor_info") or {}
         visitor_name = visitor_info.get("name", "")
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "checking_calendar",
+            visitor_info=visitor_info,
+            additional_info=f"{visitor_name}様の予約を確認中"
+        )
 
         try:
             print(f"📅 Checking calendar for appointment: {visitor_name}")
@@ -811,9 +843,18 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
     async def delivery_guidance_node(self, state: ConversationState) -> ConversationState:
         """配達業者専用の案内ノード - シンプルで迅速な対応"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state.get("visitor_info") or {}
         company = visitor_info.get("company", "配送業者")
-        
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "providing_guidance",
+            visitor_info=visitor_info,
+            additional_info="配達業者への案内を実施中"
+        )
+
         # 配達業者向けの専用メッセージ
         delivery_message = f"""{company}様、お疲れ様です。
 
@@ -824,11 +865,11 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
 配達完了後は、そのままお帰りいただけます。
 ありがとうございました。"""
-        
+
         ai_message = AIMessage(content=delivery_message)
-        
+
         print(f"📦 Delivery guidance completed for: {company}")
-        
+
         return {
             **state,
             "messages": state.get("messages", []) + [ai_message],
@@ -837,10 +878,19 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
     async def sales_guidance_node(self, state: ConversationState) -> ConversationState:
         """営業来客専用の案内ノード - 丁寧なお断り"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state.get("visitor_info") or {}
         company = visitor_info.get("company", "営業会社")
         name = visitor_info.get("name", "営業担当")
-        
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "providing_guidance",
+            visitor_info=visitor_info,
+            additional_info="営業来客への対応を実施中"
+        )
+
         # 営業来客向けの専用メッセージ
         sales_message = f"""{name}様、お疲れ様です。
 
@@ -850,11 +900,11 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 もしお名刺や資料をお預けいただける場合は、
 こちらにお預けください。
 必要に応じて後日、担当者よりご連絡差し上げます。"""
-        
+
         ai_message = AIMessage(content=sales_message)
-        
+
         print(f"💼 Sales guidance completed for: {company}")
-        
+
         return {
             **state,
             "messages": state.get("messages", []) + [ai_message],
@@ -863,15 +913,24 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
     async def appointment_guidance_node(self, state: ConversationState) -> ConversationState:
         """予約来客専用の案内ノード - カレンダー結果に基づく案内"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state.get("visitor_info") or {}
         calendar_result = state.get("calendar_result")
-        
+
+        # Send progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "providing_guidance",
+            visitor_info=visitor_info,
+            additional_info="予約来客への案内を実施中"
+        )
+
         if not calendar_result:
             raise ValueError("Calendar check required for appointment guidance")
-        
+
         name = visitor_info.get("name", "")
         company = visitor_info.get("company", "")
-        
+
         if calendar_result.get("found"):
             # 予約あり
             room_name = calendar_result.get("roomName", "会議室")
@@ -891,11 +950,11 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 恐れ入りますが、事前予約制となっております。
 お手数ですが、担当者にご連絡の上、
 改めて予約をお取りください。"""
-        
+
         ai_message = AIMessage(content=appointment_message)
-        
+
         print(f"📅 Appointment guidance completed for: {company} - Found: {calendar_result.get('found', False)}")
-        
+
         return {
             **state,
             "messages": state.get("messages", []) + [ai_message],
@@ -903,7 +962,8 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         }
 
     async def send_slack_node(self, state: ConversationState) -> ConversationState:
-        """Send notification to Slack as background task"""
+        """Send completion notification through async notification system"""
+        session_id = state.get("session_id", "unknown")
         visitor_info = state["visitor_info"]
         messages = state["messages"]
         calendar_result = state.get("calendar_result")
@@ -911,7 +971,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
         # Convert messages to conversation logs
         conversation_logs = []
         for msg in messages:
-            if isinstance(msg, (HumanMessage, AIMessage)):
+            if isinstance(msg, HumanMessage | AIMessage):
                 speaker = "visitor" if isinstance(msg, HumanMessage) else "ai"
                 log: ConversationLog = {
                     "timestamp": datetime.now(),
@@ -920,13 +980,23 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                 }
                 conversation_logs.append(log)
 
-        # Send Slack notification as background task to avoid blocking user response
-        await background_task_manager.send_slack_notification_async(
+        # Send completion notification through async notification system
+        await async_notification_manager.send_completion_notification(
+            session_id,
             visitor_info,
             conversation_logs,
             calendar_result
         )
-        print(f"📤 Slack notification scheduled in background for: {visitor_info.get('company', 'Unknown')}")
+
+        # Send final progress notification
+        await async_notification_manager.send_progress_notification(
+            session_id,
+            "completing",
+            visitor_info=visitor_info,
+            additional_info="来客対応が完了しました"
+        )
+
+        print(f"📤 Async notification sent for: {visitor_info.get('company', 'Unknown')}")
 
         return {
             **state,
@@ -1042,7 +1112,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
 訪問目的の抽出例：
 - "打ち合わせ" "打ち合わせできました" "打ち合わせで来ました" → "予約会議"
-- "営業" "営業で伺いました" "営業訪問です" → "営業"  
+- "営業" "営業で伺いました" "営業訪問です" → "営業"
 - "配達" "荷物を持参しました" → "配達"
 - "面談" "面接" → "面談"
 
@@ -1119,7 +1189,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
     "intent": "confirmed|correction|unclear",
     "corrected_info": {{
         "company": "修正された会社名（修正がない場合は省略）",
-        "name": "修正された名前（修正がない場合は省略）", 
+        "name": "修正された名前（修正がない場合は省略）",
         "purpose": "修正された訪問目的（修正がない場合は省略）"
     }}
 }}
@@ -1128,11 +1198,11 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 1. "confirmed" - 情報が正しいと確認
    - 「はい」「そうです」「正しいです」「間違いありません」「あってます」「合ってます」「その通り」など
    - 自然な日本語での肯定表現を幅広く認識する
-   
+
 2. "correction" - 修正が必要
    - 「いいえ」「違います」「間違っています」「違う」など否定表現
    - または具体的な修正内容が含まれている場合
-   
+
 3. "unclear" - 意図が不明確
    - 上記以外の曖昧な回答
 
@@ -1194,7 +1264,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
     async def _ai_determine_visitor_type(self, purpose: str, visitor_info: dict[str, Any]) -> str:
         """Use AI to determine visitor type from purpose with high accuracy"""
-        
+
         try:
             context = f"""
 訪問者情報:
@@ -1218,15 +1288,15 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
 判定結果を1単語で返してください: appointment, sales, または delivery
 """
-            
+
             ai_response = await self.text_service.generate_output(
                 "訪問タイプの判定",
                 context
             )
-            
+
             # Extract visitor type from AI response
             response_lower = ai_response.lower().strip()
-            
+
             if "delivery" in response_lower:
                 return "delivery"
             elif "sales" in response_lower:
@@ -1236,19 +1306,19 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             else:
                 # If AI response is unclear, fallback to pattern matching
                 return self._fallback_visitor_type_detection(purpose)
-                
+
         except Exception as e:
             print(f"AI visitor type determination error: {e}")
             # Fallback to pattern matching
             return self._fallback_visitor_type_detection(purpose)
-    
+
     async def _ai_is_delivery_visitor(self, input_text: str, extracted_info: dict[str, Any] = None) -> bool:
         """Use AI to determine if visitor is a delivery person for early shortcut"""
-        
+
         try:
             company = extracted_info.get("company", "") if extracted_info else ""
             purpose = extracted_info.get("purpose", "") if extracted_info else ""
-            
+
             context = f"""
 ユーザー入力: "{input_text}"
 抽出された情報:
@@ -1264,11 +1334,11 @@ response_messageは次のステップへの自然な案内を含めてくださ�
    - 日本郵便、郵便局、郵便
    - Amazon、アマゾン配送
    - UPS、DHL、FedEx
-   
+
 2. 配達の目的や表現：
    - 「配達」「荷物」「お届け」「宅配」「配送」
    - 「お荷物です」「宅配便です」「配達物があります」
-   
+
 3. 会社名のみでも配送業者なら配達と判定：
    - 「ヤマトです」→ yes
    - 「佐川です」→ yes
@@ -1287,14 +1357,14 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 
 判定結果: yes または no
 """
-            
+
             ai_response = await self.text_service.generate_output(
                 "JSON形式でyesまたはnoを返す",
                 context
             )
-            
+
             response_lower = ai_response.lower().strip()
-            
+
             # Look for yes/no in the response more strictly
             if response_lower.startswith("yes") or '"yes"' in response_lower or "'yes'" in response_lower:
                 result = True
@@ -1306,18 +1376,18 @@ response_messageは次のステップへの自然な案内を含めてくださ�
                 delivery_keywords = ["ヤマト", "佐川", "郵便", "amazon", "配達", "荷物", "お届け", "宅配", "delivery"]
                 result = any(keyword in input_lower for keyword in delivery_keywords)
             print(f"🚚 AI delivery detection: '{input_text[:30]}...' -> {result}")
-            
+
             return result
-            
+
         except Exception as e:
             print(f"AI delivery detection error: {e}")
             # Error時は安全側（通常フロー）に
             return False
-    
+
     def _fallback_visitor_type_detection(self, purpose: str) -> str:
         """Fallback pattern matching for visitor type detection"""
         purpose_lower = purpose.lower()
-        
+
         if any(word in purpose_lower for word in ["予約", "会議", "打ち合わせ", "アポ", "appointment", "ミーティング", "面談", "訪問", "お約束"]):
             return "appointment"
         elif any(word in purpose_lower for word in ["営業", "商談", "提案", "sales", "セールス", "紹介", "ご案内"]):
@@ -1326,7 +1396,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
             return "delivery"
         else:
             return "appointment"  # Default to appointment
-    
+
     async def _ai_understand_confirmation(self, user_input: str, state: ConversationState) -> str:
         """Use AI to understand user's confirmation intent with conversation context"""
         try:
@@ -1347,7 +1417,7 @@ response_messageは次のステップへの自然な案内を含めてくださ�
 この会話の文脈を理解した上で、ユーザーの最新の発言の意図を判断してください：
 
 1. "confirmed" - 上記の情報が正しいと確認している
-2. "denied" - 上記の情報が間違っているため修正したい  
+2. "denied" - 上記の情報が間違っているため修正したい
 3. "unclear" - 意図が不明確で再確認が必要
 
 重要：

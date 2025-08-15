@@ -1,11 +1,12 @@
-import pytest
 import uuid
-from unittest.mock import AsyncMock, patch
-from fastapi.testclient import TestClient
-from fastapi import status
+from unittest.mock import patch
 
-from app.main import app
+import pytest
+from fastapi import status
+from fastapi.testclient import TestClient
+
 from app.api.conversation import graph_manager
+from app.main import app
 
 
 class TestConversationAPI:
@@ -22,7 +23,7 @@ class TestConversationAPI:
     def test_health_check(self, client):
         """Test health check endpoint"""
         response = client.get("/api/health")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "healthy"
@@ -41,7 +42,7 @@ class TestConversationAPI:
         }
 
         response = client.post("/api/conversations")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
@@ -55,7 +56,7 @@ class TestConversationAPI:
         mock_start.side_effect = Exception("System error")
 
         response = client.post("/api/conversations")
-        
+
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         data = response.json()
         assert "Failed to start conversation" in data["detail"]
@@ -80,7 +81,7 @@ class TestConversationAPI:
             f"/api/conversations/{mock_session_id}/messages",
             json={"message": "山田太郎、株式会社テストです"}
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
@@ -94,7 +95,7 @@ class TestConversationAPI:
             "/api/conversations/invalid-uuid/messages",
             json={"message": "test message"}
         )
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert "Invalid session ID format" in data["detail"]
@@ -105,7 +106,7 @@ class TestConversationAPI:
             f"/api/conversations/{mock_session_id}/messages",
             json={"message": ""}
         )
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert "Message cannot be empty" in data["detail"]
@@ -123,7 +124,7 @@ class TestConversationAPI:
             f"/api/conversations/{mock_session_id}/messages",
             json={"message": "test message"}
         )
-        
+
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
         assert "Conversation session not found" in data["detail"]
@@ -141,7 +142,7 @@ class TestConversationAPI:
             f"/api/conversations/{mock_session_id}/messages",
             json={"message": "test message"}
         )
-        
+
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         data = response.json()
         assert "System processing error" in data["detail"]
@@ -173,7 +174,7 @@ class TestConversationAPI:
         }
 
         response = client.get(f"/api/conversations/{mock_session_id}")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
@@ -185,7 +186,7 @@ class TestConversationAPI:
     def test_get_conversation_history_invalid_session_id(self, client):
         """Test getting history with invalid session ID format"""
         response = client.get("/api/conversations/invalid-uuid")
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert "Invalid session ID format" in data["detail"]
@@ -200,7 +201,7 @@ class TestConversationAPI:
         }
 
         response = client.get(f"/api/conversations/{mock_session_id}")
-        
+
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
         assert "Conversation session not found" in data["detail"]
@@ -208,7 +209,7 @@ class TestConversationAPI:
     def test_end_conversation_success(self, client, mock_session_id):
         """Test successful conversation ending"""
         response = client.delete(f"/api/conversations/{mock_session_id}")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["session_id"] == mock_session_id
@@ -217,7 +218,7 @@ class TestConversationAPI:
     def test_end_conversation_invalid_session_id(self, client):
         """Test ending conversation with invalid session ID format"""
         response = client.delete("/api/conversations/invalid-uuid")
-        
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert "Invalid session ID format" in data["detail"]
@@ -225,7 +226,7 @@ class TestConversationAPI:
     def test_list_active_sessions(self, client):
         """Test listing active sessions (placeholder implementation)"""
         response = client.get("/api/conversations/")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
@@ -235,9 +236,9 @@ class TestConversationAPI:
         with patch.object(graph_manager, 'start_conversation') as mock_start, \
              patch.object(graph_manager, 'send_message') as mock_send, \
              patch.object(graph_manager, 'get_conversation_history') as mock_history:
-            
+
             session_id = str(uuid.uuid4())
-            
+
             # Start conversation
             mock_start.return_value = {
                 "success": True,
@@ -245,12 +246,12 @@ class TestConversationAPI:
                 "message": "いらっしゃいませ！",
                 "step": "name_collection"
             }
-            
+
             start_response = client.post("/api/conversations")
             assert start_response.status_code == status.HTTP_200_OK
             start_data = start_response.json()
             session_id = start_data["session_id"]
-            
+
             # Send message
             mock_send.return_value = {
                 "success": True,
@@ -263,7 +264,7 @@ class TestConversationAPI:
                 },
                 "completed": False
             }
-            
+
             message_response = client.post(
                 f"/api/conversations/{session_id}/messages",
                 json={"message": "山田太郎、株式会社テストです"}
@@ -271,7 +272,7 @@ class TestConversationAPI:
             assert message_response.status_code == status.HTTP_200_OK
             message_data = message_response.json()
             assert message_data["step"] == "confirmation"
-            
+
             # Get history
             mock_history.return_value = {
                 "success": True,
@@ -284,12 +285,12 @@ class TestConversationAPI:
                 "current_step": "confirmation",
                 "completed": False
             }
-            
+
             history_response = client.get(f"/api/conversations/{session_id}")
             assert history_response.status_code == status.HTTP_200_OK
             history_data = history_response.json()
             assert len(history_data["messages"]) == 3
-            
+
             # End conversation
             end_response = client.delete(f"/api/conversations/{session_id}")
             assert end_response.status_code == status.HTTP_200_OK
@@ -309,7 +310,7 @@ class TestConversationAPIValidation:
             f"/api/conversations/{session_id}/messages",
             json={}
         )
-        
+
         # Should return 422 for validation error
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -321,14 +322,14 @@ class TestConversationAPIValidation:
             data="invalid json",
             headers={"Content-Type": "application/json"}
         )
-        
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_send_message_long_message(self, client):
         """Test sending extremely long message"""
         session_id = str(uuid.uuid4())
         long_message = "あ" * 1000  # 1000 characters
-        
+
         with patch.object(graph_manager, 'send_message') as mock_send:
             mock_send.return_value = {
                 "success": True,
@@ -337,19 +338,19 @@ class TestConversationAPIValidation:
                 "step": "processing",
                 "completed": False
             }
-            
+
             response = client.post(
                 f"/api/conversations/{session_id}/messages",
                 json={"message": long_message}
             )
-            
+
             # Should still process (no hard limit set in API)
             assert response.status_code == status.HTTP_200_OK
 
     def test_api_cors_headers(self, client):
         """Test that CORS headers are properly set"""
         response = client.options("/api/health")
-        
+
         # Note: TestClient doesn't fully simulate CORS,
         # but we can test that the endpoint responds
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_405_METHOD_NOT_ALLOWED]
@@ -368,7 +369,7 @@ class TestAPIErrorHandling:
         mock_start.side_effect = RuntimeError("Unexpected system error")
 
         response = client.post("/api/conversations")
-        
+
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         data = response.json()
         assert "Failed to start conversation" in data["detail"]
@@ -383,7 +384,7 @@ class TestAPIErrorHandling:
             f"/api/conversations/{session_id}/messages",
             json={"message": "test message"}
         )
-        
+
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         data = response.json()
         assert "Failed to process message" in data["detail"]
@@ -391,5 +392,5 @@ class TestAPIErrorHandling:
     def test_nonexistent_endpoint(self, client):
         """Test calling non-existent endpoint"""
         response = client.get("/api/nonexistent")
-        
+
         assert response.status_code == status.HTTP_404_NOT_FOUND

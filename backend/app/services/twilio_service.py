@@ -46,12 +46,12 @@ class TwilioService:
 
         try:
             print(f"🔄 Creating Twilio video room: {room_name}")
-            
+
             # Try to create room with timeout parameters suitable for trial accounts
             # Trial accounts: 1-60 seconds, Production accounts: 1-3600 seconds
             room = None
             creation_method = None
-            
+
             try:
                 # Attempt 1: Create room with trial-compatible timeout values
                 room = self.client.video.v1.rooms.create(
@@ -63,11 +63,11 @@ class TwilioService:
                     unused_room_timeout=60  # 1 minute (compatible with trial accounts)
                 )
                 creation_method = "with trial-compatible timeouts (60s)"
-                
+
             except Exception as timeout_error:
                 if "Timeout is out of range" in str(timeout_error):
                     print("⚠️  Trial timeout values failed, trying without timeout parameters...")
-                    
+
                     # Attempt 2: Create room without timeout parameters (uses Twilio defaults)
                     room = self.client.video.v1.rooms.create(
                         unique_name=room_name,
@@ -116,7 +116,7 @@ class TwilioService:
             # Twilio API error
             error_message = str(e)
             print(f"❌ Failed to create Twilio room: {error_message}")
-            
+
             # Provide specific error messages for common issues
             if "Type must be one of" in error_message:
                 raise Exception("Invalid room type. Please check Twilio account permissions for room types.")
@@ -139,14 +139,14 @@ class TwilioService:
 
         Returns:
             Dictionary containing access token
-            
+
         Raises:
             Exception: If token generation fails
         """
         # Validate room name
         if not room_name or not room_name.strip():
             raise Exception("Room name cannot be empty")
-        
+
         # Validate staff name
         if not staff_name or not staff_name.strip():
             raise Exception("Staff name cannot be empty")
@@ -158,7 +158,7 @@ class TwilioService:
             mock_jwt_payload = "eyJpc3MiOiJtb2NrIiwic3ViIjoic3RhZmYiLCJhdWQiOlsidmlkZW8iXSwiZXhwIjo5OTk5OTk5OTk5LCJpYXQiOjE2MDAwMDAwMDAsImp0aSI6Im1vY2tfc3RhZmZfand0X2lkIiwiZ3JhbnRzIjp7InZpZGVvIjp7InJvb20iOiJ0ZXN0LXJvb20tc3RhZmYifX19"
             mock_jwt_signature = "mock_staff_signature_for_development"
             mock_staff_token = f"{mock_jwt_header}.{mock_jwt_payload}.{mock_jwt_signature}"
-            
+
             return {
                 'access_token': mock_staff_token,
                 'identity': f"{staff_name.strip()}_staff"
@@ -179,10 +179,10 @@ class TwilioService:
     async def end_room(self, room_name: str) -> bool:
         """
         End an active video room
-        
+
         Args:
             room_name: Name of the room to end
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -192,7 +192,7 @@ class TwilioService:
 
         try:
             # Update room status to completed
-            room = self.client.video.v1.rooms(room_name).update(status='completed')
+            self.client.video.v1.rooms(room_name).update(status='completed')
             print(f"Room {room_name} ended successfully")
             return True
         except Exception as e:
@@ -202,31 +202,31 @@ class TwilioService:
     def _generate_access_token(self, identity: str, room_name: str) -> str:
         """
         Generate JWT access token with Video grant
-        
+
         Args:
             identity: Unique identifier for the participant
             room_name: Name of the room to grant access to
-            
+
         Returns:
             JWT token string
-        
+
         Raises:
             ValueError: If API key or secret is missing
         """
         # Validate required credentials
         if not self.api_key or not self.api_secret:
             raise ValueError("API key and secret are required for token generation. Ensure TWILIO_API_KEY and TWILIO_API_SECRET are set.")
-        
+
         if not self.account_sid:
             raise ValueError("Account SID is required for token generation. Ensure TWILIO_ACCOUNT_SID is set.")
-        
+
         # Validate identity (must be non-empty and valid format)
         if not identity or not identity.strip():
             raise ValueError("Identity cannot be empty")
-        
+
         # Sanitize identity to ensure it meets Twilio requirements
         sanitized_identity = identity.strip().replace(" ", "_")[:50]  # Max 50 chars, no spaces
-        
+
         # Create access token with 1 hour TTL (max allowed is 24 hours)
         token = AccessToken(
             self.account_sid,
@@ -253,11 +253,11 @@ class TwilioService:
     def _create_mock_room_response(self, room_name: str, visitor_name: str) -> dict[str, Any]:
         """
         Create mock room response for development without Twilio credentials
-        
+
         Args:
             room_name: Generated room name
             visitor_name: Name of the visitor
-            
+
         Returns:
             Mock room response with proper JWT structure for development
         """

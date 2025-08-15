@@ -23,15 +23,16 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com'
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test'
         }):
             # Reload config and app to pick up new environment
             from app.config import Settings
             settings = Settings()
-            
+
             # Test cors_origins property
             assert settings.cors_origins == ["*"]
-            assert settings.cors_allow_credentials == False
+            assert not settings.cors_allow_credentials
             assert settings.environment == "development"
 
     def test_production_cors_with_specific_origins(self):
@@ -42,15 +43,16 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com'
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test'
         }):
             from app.config import Settings
             settings = Settings()
-            
+
             # Test cors_origins property
             expected_origins = ['https://app.example.com', 'https://www.example.com']
             assert settings.cors_origins == expected_origins
-            assert settings.cors_allow_credentials == True
+            assert settings.cors_allow_credentials
             assert settings.environment == "production"
 
     def test_production_cors_with_empty_origins(self):
@@ -61,14 +63,15 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com'
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test'
         }):
             from app.config import Settings
             settings = Settings()
-            
+
             # Test cors_origins property
             assert settings.cors_origins == []
-            assert settings.cors_allow_credentials == True
+            assert settings.cors_allow_credentials
 
     def test_cors_origins_parsing_with_spaces(self):
         """Test that origins with spaces are properly parsed"""
@@ -78,11 +81,12 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com'
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test'
         }):
             from app.config import Settings
             settings = Settings()
-            
+
             # Test that spaces are trimmed
             expected_origins = [
                 'https://app.example.com',
@@ -100,19 +104,21 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com',
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test',
             'DEBUG': 'true'
         }, clear=True):
             # Need to reimport to get fresh settings
             import importlib
+
             import app.config
             importlib.reload(app.config)
             import app.main
             importlib.reload(app.main)
-            
+
             from app.main import app
             client = TestClient(app)
-            
+
             # Test OPTIONS request (preflight)
             response = client.options(
                 "/api/health",
@@ -121,7 +127,7 @@ class TestCORSConfiguration:
                     "Access-Control-Request-Method": "GET"
                 }
             )
-            
+
             # In development, should allow any origin
             assert response.status_code == 200
             assert response.headers.get("access-control-allow-origin") == "*"
@@ -137,19 +143,21 @@ class TestCORSConfiguration:
             'OPENAI_API_KEY': 'test-key',
             'GOOGLE_SERVICE_ACCOUNT_KEY': '{"test": "key"}',
             'MEETING_ROOM_CALENDAR_IDS': 'test@test.com',
-            'SLACK_WEBHOOK_URL': 'https://test.slack.com',
+            'SLACK_BOT_TOKEN': 'xoxb-test-token',
+            'SLACK_CHANNEL': '#test',
             'DEBUG': 'false'
         }, clear=True):
             # Need to reimport to get fresh settings
             import importlib
+
             import app.config
             importlib.reload(app.config)
             import app.main
             importlib.reload(app.main)
-            
+
             from app.main import app
             client = TestClient(app)
-            
+
             # Test OPTIONS request with allowed origin
             response = client.options(
                 "/api/health",
@@ -158,12 +166,12 @@ class TestCORSConfiguration:
                     "Access-Control-Request-Method": "GET"
                 }
             )
-            
+
             # Should allow the specific origin
             assert response.status_code == 200
             assert response.headers.get("access-control-allow-origin") == allowed_origin
             assert response.headers.get("access-control-allow-credentials") == "true"
-            
+
             # Test with non-allowed origin
             response = client.options(
                 "/api/health",
@@ -172,7 +180,7 @@ class TestCORSConfiguration:
                     "Access-Control-Request-Method": "GET"
                 }
             )
-            
+
             # Should not have CORS headers for non-allowed origin
             assert "access-control-allow-origin" not in response.headers
 

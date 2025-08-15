@@ -1,10 +1,10 @@
-import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from langchain_core.messages import HumanMessage, AIMessage
 
-from app.agents.reception_graph import ReceptionGraphManager, create_reception_graph
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+
 from app.agents.nodes import ReceptionNodes
+from app.agents.reception_graph import ReceptionGraphManager
 from app.models.conversation import ConversationState
 from app.models.visitor import VisitorInfo
 
@@ -129,7 +129,7 @@ class TestReceptionNodes:
         # AI may either extract corrections or request complete re-entry
         # Both are valid responses to negative confirmation
         assert result["current_step"] in ["confirmation_response", "collect_all_info"]
-        
+
         if result["current_step"] == "collect_all_info":
             # Complete re-entry: visitor_info is cleared
             assert result["visitor_info"] == {}
@@ -321,7 +321,7 @@ class TestReceptionNodes:
 
         mock_slack.send_visitor_notification = AsyncMock()
         reception_nodes.slack_service = mock_slack
-        
+
         result = await reception_nodes.send_slack_node(state)
 
         assert result["current_step"] == "complete"
@@ -357,7 +357,7 @@ class TestReceptionGraphManager:
         """Test sending a message successfully"""
         with patch.object(graph_manager.graph, 'aget_state') as mock_get_state, \
              patch.object(graph_manager.graph, 'ainvoke') as mock_invoke:
-            
+
             # Mock current state
             mock_state = MagicMock()
             mock_state.values = {
@@ -427,7 +427,7 @@ class TestVisitorInfoExtraction:
     def test_extract_visitor_info_standard_format(self):
         """Test extraction with standard Japanese format"""
         nodes = ReceptionNodes()
-        
+
         result = nodes._extract_visitor_info("山田太郎、株式会社テストです")
         assert result["name"] == "山田太郎"
         assert result["company"] == "株式会社テスト"
@@ -435,7 +435,7 @@ class TestVisitorInfoExtraction:
     def test_extract_visitor_info_english_format(self):
         """Test extraction with English company format"""
         nodes = ReceptionNodes()
-        
+
         result = nodes._extract_visitor_info("John Smith, Test Corp")
         assert result["name"] == "John Smith"
         assert result["company"] == "Test Corp"
@@ -443,7 +443,7 @@ class TestVisitorInfoExtraction:
     def test_extract_visitor_info_partial(self):
         """Test extraction with partial information"""
         nodes = ReceptionNodes()
-        
+
         result = nodes._extract_visitor_info("山田太郎")
         assert result["name"] == "山田太郎"
         assert result["company"] == ""
@@ -451,7 +451,7 @@ class TestVisitorInfoExtraction:
     def test_detect_visitor_type_delivery(self):
         """Test visitor type detection for delivery companies"""
         nodes = ReceptionNodes()
-        
+
         visitor_info = {"name": "配達員", "company": "ヤマト運輸"}
         result = nodes._detect_visitor_type(visitor_info)
         assert result == "delivery"
@@ -459,7 +459,7 @@ class TestVisitorInfoExtraction:
     def test_detect_visitor_type_sales(self):
         """Test visitor type detection for sales companies"""
         nodes = ReceptionNodes()
-        
+
         visitor_info = {"name": "営業", "company": "営業商事"}
         result = nodes._detect_visitor_type(visitor_info)
         assert result == "sales"
@@ -467,7 +467,7 @@ class TestVisitorInfoExtraction:
     def test_detect_visitor_type_appointment(self):
         """Test visitor type detection for regular appointments"""
         nodes = ReceptionNodes()
-        
+
         visitor_info = {"name": "山田太郎", "company": "普通の会社"}
         result = nodes._detect_visitor_type(visitor_info)
         assert result == "appointment"

@@ -1,5 +1,4 @@
 
-from typing import List
 
 from pydantic_settings import BaseSettings
 
@@ -15,8 +14,9 @@ class Settings(BaseSettings):
     meeting_room_calendar_ids: str
 
     # Slack Configuration
-    slack_webhook_url: str
-    
+    slack_bot_token: str  # Required: Slack Bot Token for Web API
+    slack_channel: str = "#general"  # Channel for Web API messages
+
     # Twilio Video Configuration
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
@@ -27,19 +27,19 @@ class Settings(BaseSettings):
     # Application Configuration
     environment: str = "development"
     debug: bool = True
-    
+
     # CORS Configuration
     allowed_origins: str = ""  # Comma-separated list for production
-    
+
     # Session Configuration
     session_timeout_minutes: int = 30
     max_correction_attempts: int = 3
 
     @property
-    def cors_origins(self) -> List[str]:
+    def cors_origins(self) -> list[str]:
         """
         Get CORS origins based on environment.
-        
+
         Returns:
             - ["*"] for development environment (allows all origins)
             - Specific origins from ALLOWED_ORIGINS env var for production
@@ -57,12 +57,12 @@ class Settings(BaseSettings):
             else:
                 # Fallback to a safe default (no origins allowed)
                 return []
-    
+
     @property
     def cors_allow_credentials(self) -> bool:
         """
         Whether to allow credentials in CORS requests.
-        
+
         Returns:
             - False when allowing all origins (*)
             - True when using specific origins

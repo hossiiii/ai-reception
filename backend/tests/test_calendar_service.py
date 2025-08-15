@@ -1,9 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import datetime, time
-import json
+from unittest.mock import MagicMock, patch
 
-from app.services.calendar_service import CalendarService, ReservationCheckResult
+import pytest
+
+from app.services.calendar_service import CalendarService
 
 
 class TestCalendarService:
@@ -60,8 +59,8 @@ class TestCalendarService:
     @patch('app.services.calendar_service.CalendarService._get_meeting_room_calendars')
     @pytest.mark.asyncio
     async def test_check_todays_reservations_found(
-        self, 
-        mock_get_calendars, 
+        self,
+        mock_get_calendars,
         mock_get_client,
         calendar_service,
         mock_calendar_client
@@ -86,8 +85,8 @@ class TestCalendarService:
     @patch('app.services.calendar_service.CalendarService._get_meeting_room_calendars')
     @pytest.mark.asyncio
     async def test_check_todays_reservations_not_found(
-        self, 
-        mock_get_calendars, 
+        self,
+        mock_get_calendars,
         mock_get_client,
         calendar_service,
         mock_empty_calendar_client
@@ -111,8 +110,8 @@ class TestCalendarService:
     @patch('app.services.calendar_service.CalendarService._get_meeting_room_calendars')
     @pytest.mark.asyncio
     async def test_check_todays_reservations_api_error(
-        self, 
-        mock_get_calendars, 
+        self,
+        mock_get_calendars,
         mock_get_client,
         calendar_service
     ):
@@ -182,10 +181,10 @@ class TestCalendarService:
         # Mock dependencies
         with patch.object(calendar_service, '_get_calendar_client') as mock_client, \
              patch.object(calendar_service, '_get_meeting_room_calendars') as mock_calendars:
-            
+
             # Setup mocks
             mock_calendars.return_value = {'A': 'test-calendar@group.calendar.google.com'}
-            
+
             mock_events = MagicMock()
             mock_events.list.return_value.execute.return_value = {
                 'items': [
@@ -219,7 +218,7 @@ class TestCalendarService:
                     }
                 ]
             }
-            
+
             mock_client.return_value.events.return_value = mock_events
 
             # Test matching by attendee
@@ -239,9 +238,9 @@ class TestCalendarService:
         """Test event time parsing for different formats"""
         with patch.object(calendar_service, '_get_calendar_client') as mock_client, \
              patch.object(calendar_service, '_get_meeting_room_calendars') as mock_calendars:
-            
+
             mock_calendars.return_value = {'A': 'test-calendar@group.calendar.google.com'}
-            
+
             # Test with dateTime
             mock_events = MagicMock()
             mock_events.list.return_value.execute.return_value = {
@@ -278,9 +277,9 @@ class TestCalendarService:
         """Test that name matching is case insensitive"""
         with patch.object(calendar_service, '_get_calendar_client') as mock_client, \
              patch.object(calendar_service, '_get_meeting_room_calendars') as mock_calendars:
-            
+
             mock_calendars.return_value = {'A': 'test-calendar@group.calendar.google.com'}
-            
+
             mock_events = MagicMock()
             mock_events.list.return_value.execute.return_value = {
                 'items': [
@@ -302,8 +301,8 @@ class TestCalendarService:
     @patch('app.services.calendar_service.CalendarService._get_meeting_room_calendars')
     @pytest.mark.asyncio
     async def test_multiple_calendar_search(
-        self, 
-        mock_get_calendars, 
+        self,
+        mock_get_calendars,
         mock_get_client,
         calendar_service
     ):

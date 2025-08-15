@@ -1,12 +1,11 @@
+
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
 
 
 class VideoRoomRequest(BaseModel):
     """Request model for creating a video room"""
     visitor_name: str = Field(..., description="Name of the visitor", min_length=1, max_length=100)
-    visitor_company: Optional[str] = Field(None, description="Company name of the visitor", max_length=200)
+    visitor_company: str | None = Field(None, description="Company name of the visitor", max_length=200)
     purpose: str = Field(default="video_reception", description="Purpose of the video call")
 
 
@@ -20,7 +19,7 @@ class VideoRoomResponse(BaseModel):
     expires_at: str = Field(..., description="Token expiry timestamp (ISO format)")
     visitor_identity: str = Field(..., description="Unique visitor identity in the room")
     max_participants: int = Field(default=2, description="Maximum participants allowed")
-    mock: Optional[bool] = Field(None, description="Whether this is a mock response for development")
+    mock: bool | None = Field(None, description="Whether this is a mock response for development")
 
 
 class StaffTokenRequest(BaseModel):

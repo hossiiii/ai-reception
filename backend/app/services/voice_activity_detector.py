@@ -57,10 +57,10 @@ class VoiceActivityDetector:
             if len(audio_chunk) % 2 != 0:
                 # Pad with zero if odd number of bytes
                 audio_chunk = audio_chunk + b'\x00'
-            
+
             # Convert bytes to numpy array (assuming 16-bit PCM)
             audio_data = np.frombuffer(audio_chunk, dtype=np.int16)
-            
+
             # Handle empty audio data
             if len(audio_data) == 0:
                 return 0.0
@@ -80,10 +80,10 @@ class VoiceActivityDetector:
     def detect_voice_activity(self, audio_chunk: bytes) -> VADResult:
         """
         Detect voice activity in audio chunk
-        
+
         Args:
             audio_chunk: Raw audio data (16-bit PCM)
-            
+
         Returns:
             VADResult: Voice activity detection result
         """
@@ -158,7 +158,7 @@ class VoiceActivityDetector:
 
         # Calculate energy statistics
         recent_energies = self.energy_history[-10:]  # Last 10 frames
-        mean_energy = np.mean(recent_energies)
+        np.mean(recent_energies)
         energy_variance = np.var(recent_energies)
 
         # Base confidence on energy level relative to threshold
@@ -180,10 +180,10 @@ class VoiceActivityDetector:
     async def process_audio_stream(self, audio_chunks: list[bytes]) -> list[VADResult]:
         """
         Process a stream of audio chunks
-        
+
         Args:
             audio_chunks: List of audio data chunks
-            
+
         Returns:
             List[VADResult]: VAD results for each chunk
         """

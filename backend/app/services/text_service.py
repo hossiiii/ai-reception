@@ -3,7 +3,6 @@ from typing import Protocol
 from openai import AsyncOpenAI
 
 from ..config import settings
-from .connection_pool import get_connection_pool
 
 
 class MessageProcessor(Protocol):
