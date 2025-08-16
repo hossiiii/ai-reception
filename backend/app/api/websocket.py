@@ -8,6 +8,7 @@ from ..agents.reception_graph import ReceptionGraphManager
 from ..services.audio_service import AudioService
 from ..services.voice_activity_detector import VADConfig, VoiceActivityDetector
 from ..services.realtime.hybrid_voice_manager import HybridVoiceManager
+from ..services.realtime.realtime_websocket_handler import get_realtime_websocket_handler
 from ..config.feature_flags import is_realtime_enabled
 
 
@@ -468,10 +469,66 @@ async def handle_voice_websocket(
             print(f"⚠️ Error during cleanup: {e}")
 
 
-# Factory function to create WebSocket endpoint
+# Factory function to create WebSocket endpoints
 def create_voice_websocket_endpoint():
     """Create voice WebSocket endpoint function"""
     async def voice_websocket_endpoint(websocket: WebSocket, session_id: str):
         await handle_voice_websocket(websocket, session_id)
 
     return voice_websocket_endpoint
+
+
+def create_realtime_websocket_endpoint():
+    """Create dedicated Realtime WebSocket endpoint function"""
+    async def realtime_websocket_endpoint(websocket: WebSocket, session_id: str):
+        """Dedicated Realtime API WebSocket endpoint"""
+        realtime_handler = get_realtime_websocket_handler()
+        await realtime_handler.handle_client_connection(websocket, session_id)
+
+    return realtime_websocket_endpoint
+
+
+async def handle_hybrid_mode_selection(websocket: WebSocket, session_id: str, mode_preference: str = "auto"):
+    """
+    ハイブリッドモード選択エンドポイント
+    
+    Args:
+        websocket: WebSocket接続
+        session_id: セッションID
+        mode_preference: モード設定 ("auto", "realtime", "legacy")
+    """
+    
+    try:
+        await websocket.accept()
+        
+        # モード選択ロジック
+        if mode_preference == "realtime":
+            # 強制Realtimeモード
+            print(f"🎙️ Forced Realtime mode requested for session: {session_id}")
+            realtime_handler = get_realtime_websocket_handler()
+            await realtime_handler.handle_client_connection(websocket, session_id)
+            
+        elif mode_preference == "legacy":
+            # 強制Legacyモード
+            print(f"🎙️ Forced Legacy mode requested for session: {session_id}")
+            await handle_voice_websocket(websocket, session_id)
+            
+        else:
+            # 自動選択（既存のハイブリッドロジック）
+            print(f"🎙️ Auto mode selection for session: {session_id}")
+            await handle_voice_websocket(websocket, session_id)
+            
+    except Exception as e:
+        print(f"❌ Hybrid mode selection error: {e}")
+        try:
+            await websocket.close(code=1011, reason=f"Mode selection failed: {e}")
+        except:
+            pass
+
+
+def create_hybrid_mode_websocket_endpoint():
+    """Create hybrid mode selection WebSocket endpoint function"""
+    async def hybrid_mode_websocket_endpoint(websocket: WebSocket, session_id: str, mode: str = "auto"):
+        await handle_hybrid_mode_selection(websocket, session_id, mode)
+
+    return hybrid_mode_websocket_endpoint

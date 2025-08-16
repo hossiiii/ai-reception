@@ -226,13 +226,15 @@ class RealtimeAudioProcessor:
             return {"success": False, "error": str(e)}
 
     async def _collect_realtime_response(self, session: RealtimeSession) -> Dict[str, Any]:
-        """Realtimeレスポンス収集"""
+        """Realtimeレスポンス収集（強化版）"""
         transcription = ""
         ai_response_text = ""
         audio_chunks = []
         function_calls = []
+        response_metadata = {}
         
-        timeout = 10  # 10秒でタイムアウト
+        timeout = 15  # タイムアウトを15秒に延長
+        start_time = time.time()
         
         try:
             while True:
@@ -244,48 +246,121 @@ class RealtimeAudioProcessor:
                 if event_type == "conversation.item.input_audio_transcription.completed":
                     # 音声認識結果
                     transcription = data.get("transcript", "")
+                    print(f"📝 Transcription received: {transcription}")
                     
                 elif event_type == "response.audio.delta":
-                    # 音声レスポンスのチャンク
+                    # 音声レスポンスのチャンク（ストリーミング対応）
                     if "delta" in data:
-                        audio_chunks.append(base64.b64decode(data["delta"]))
+                        try:
+                            audio_chunk = base64.b64decode(data["delta"])
+                            audio_chunks.append(audio_chunk)
+                            print(f"🎵 Audio chunk received: {len(audio_chunk)} bytes")
+                        except Exception as e:
+                            print(f"⚠️ Audio decode error: {e}")
                         
                 elif event_type == "response.text.delta":
-                    # テキストレスポンスのチャンク
+                    # テキストレスポンスのチャンク（ストリーミング対応）
                     if "delta" in data:
                         ai_response_text += data["delta"]
                         
                 elif event_type == "response.function_call_arguments.delta":
-                    # Function Call引数の収集
+                    # Function Call引数の収集（強化）
                     call_id = data.get("call_id")
+                    function_name = data.get("name", "")
+                    
                     if call_id not in session.pending_functions:
                         session.pending_functions[call_id] = {
-                            "name": data.get("name", ""),
-                            "arguments": ""
+                            "name": function_name,
+                            "arguments": "",
+                            "start_time": time.time()
                         }
+                        print(f"🔧 Function call started: {function_name} ({call_id})")
+                    
                     session.pending_functions[call_id]["arguments"] += data.get("delta", "")
                     
                 elif event_type == "response.function_call_arguments.done":
-                    # Function Call完了
+                    # Function Call完了（エラーハンドリング強化）
                     call_id = data.get("call_id")
                     if call_id in session.pending_functions:
                         function_call = session.pending_functions[call_id]
-                        function_calls.append({
-                            "call_id": call_id,
-                            "name": function_call["name"],
-                            "parameters": json.loads(function_call["arguments"])
-                        })
                         
+                        try:
+                            # 引数をパース
+                            arguments = json.loads(function_call["arguments"]) if function_call["arguments"] else {}
+                            
+                            function_calls.append({
+                                "call_id": call_id,
+                                "name": function_call["name"],
+                                "parameters": arguments,
+                                "execution_time": time.time() - function_call["start_time"]
+                            })
+                            
+                            print(f"✅ Function call completed: {function_call['name']} ({call_id})")
+                            
+                        except json.JSONDecodeError as e:
+                            print(f"❌ Function call argument parsing error: {e}")
+                            function_calls.append({
+                                "call_id": call_id,
+                                "name": function_call["name"],
+                                "parameters": {},
+                                "error": f"Argument parsing failed: {e}"
+                            })
+                        
+                        # 完了した関数呼び出しを削除
+                        del session.pending_functions[call_id]
+                        
+                elif event_type == "response.output_audio.delta":
+                    # 出力音声のデルタ（追加サポート）
+                    if "delta" in data:
+                        try:
+                            audio_chunk = base64.b64decode(data["delta"])
+                            audio_chunks.append(audio_chunk)
+                        except Exception as e:
+                            print(f"⚠️ Output audio decode error: {e}")
+                            
                 elif event_type == "response.done":
                     # レスポンス完了
+                    response_metadata = {
+                        "response_id": data.get("response_id"),
+                        "status": data.get("status"),
+                        "usage": data.get("usage", {}),
+                        "processing_time": time.time() - start_time
+                    }
+                    print(f"✅ Response completed: {response_metadata['response_id']}")
+                    break
+                    
+                elif event_type == "response.cancelled":
+                    # レスポンスキャンセル
+                    print(f"⚠️ Response cancelled: {data.get('response_id')}")
                     break
                     
                 elif event_type == "error":
                     # エラー発生
-                    raise Exception(f"Realtime API error: {data.get('error', {}).get('message', 'Unknown error')}")
+                    error_info = data.get("error", {})
+                    error_message = error_info.get("message", "Unknown error")
+                    error_code = error_info.get("code", "unknown")
+                    
+                    print(f"❌ Realtime API error: {error_code} - {error_message}")
+                    raise Exception(f"Realtime API error [{error_code}]: {error_message}")
+                    
+                elif event_type == "rate_limits.updated":
+                    # レート制限情報の更新
+                    rate_limits = data.get("rate_limits", [])
+                    print(f"📊 Rate limits updated: {rate_limits}")
+                    response_metadata["rate_limits"] = rate_limits
+                    
+                # レスポンス処理時間チェック
+                if time.time() - start_time > 30:  # 30秒の最大処理時間
+                    print(f"⚠️ Response collection timeout (30s exceeded)")
+                    break
                     
         except asyncio.TimeoutError:
             print(f"⚠️ Realtime response timeout for session {session.session_id}")
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON decode error: {e}")
+        except Exception as e:
+            print(f"❌ Unexpected error in response collection: {e}")
+            raise
         
         # 音声データ結合
         complete_audio = b"".join(audio_chunks) if audio_chunks else b""
@@ -293,50 +368,214 @@ class RealtimeAudioProcessor:
         # Function Callsが必要かチェック
         requires_langgraph = len(function_calls) > 0
         
-        return {
+        # 処理時間計算
+        total_processing_time = time.time() - start_time
+        
+        result = {
             "success": True,
             "transcription": transcription,
             "ai_response": ai_response_text,
             "audio_data": complete_audio,
             "function_calls": function_calls,
             "requires_langgraph": requires_langgraph,
-            "features": ["real_time_audio", "auto_transcription", "low_latency"]
+            "features": ["real_time_audio", "auto_transcription", "low_latency", "streaming"],
+            "metadata": response_metadata,
+            "processing_time": total_processing_time,
+            "audio_chunks_count": len(audio_chunks),
+            "audio_total_size": len(complete_audio)
         }
+        
+        return result
 
     async def send_function_result(self, session_id: str, function_result: Dict[str, Any]):
-        """Function Call結果をRealtimeAPIに送信"""
+        """Function Call結果をRealtimeAPIに送信（リトライ機能付き）"""
         if session_id not in self.active_sessions:
+            print(f"⚠️ Session not found for function result: {session_id}")
             return
         
         session = self.active_sessions[session_id]
         
         if not session.websocket:
+            print(f"⚠️ WebSocket not available for session: {session_id}")
             return
         
+        max_retries = 3
+        retry_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Function Call結果を送信
+                result_message = {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "function_call_output",
+                        "call_id": function_result.get("call_id"),
+                        "output": json.dumps(function_result.get("result", {}))
+                    }
+                }
+                
+                await session.websocket.send(json.dumps(result_message))
+                print(f"✅ Function result sent successfully: {function_result.get('call_id')}")
+                
+                # 新しいレスポンスを生成リクエスト
+                response_create = {
+                    "type": "response.create",
+                    "response": {
+                        "modalities": ["text", "audio"],
+                        "instructions": "Function callの結果を踏まえて、適切に応答してください。"
+                    }
+                }
+                await session.websocket.send(json.dumps(response_create))
+                return  # 成功時は即座に終了
+                
+            except Exception as e:
+                print(f"❌ Function result send error (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt < max_retries - 1:
+                    # リトライ前に少し待機
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # 指数バックオフ
+                else:
+                    # 最終試行でも失敗した場合
+                    print(f"❌ Failed to send function result after {max_retries} attempts")
+                    session.state = RealtimeSessionState.ERROR
+
+    async def start_audio_streaming(self, session_id: str) -> Dict[str, Any]:
+        """音声ストリーミング開始"""
+        if session_id not in self.active_sessions:
+            return {"success": False, "error": "Session not found"}
+        
+        session = self.active_sessions[session_id]
+        
+        if session.state != RealtimeSessionState.CONNECTED:
+            return {"success": False, "error": "Session not ready for streaming"}
+        
         try:
-            # Function Call結果を送信
-            result_message = {
-                "type": "conversation.item.create",
-                "item": {
-                    "type": "function_call_output",
-                    "call_id": function_result.get("call_id"),
-                    "output": json.dumps(function_result.get("result", {}))
-                }
-            }
+            session.state = RealtimeSessionState.STREAMING
             
-            await session.websocket.send(json.dumps(result_message))
-            
-            # 新しいレスポンスを生成リクエスト
-            response_create = {
-                "type": "response.create",
-                "response": {
-                    "modalities": ["text", "audio"]
-                }
+            # ストリーミング開始メッセージ
+            streaming_message = {
+                "type": "input_audio_buffer.clear"  # まずバッファをクリア
             }
-            await session.websocket.send(json.dumps(response_create))
+            await session.websocket.send(json.dumps(streaming_message))
+            
+            print(f"🎵 Audio streaming started for session: {session_id}")
+            
+            return {
+                "success": True,
+                "session_id": session_id,
+                "streaming_active": True
+            }
             
         except Exception as e:
-            print(f"❌ Function result send error: {e}")
+            session.state = RealtimeSessionState.ERROR
+            print(f"❌ Streaming start error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def stop_audio_streaming(self, session_id: str) -> Dict[str, Any]:
+        """音声ストリーミング停止"""
+        if session_id not in self.active_sessions:
+            return {"success": False, "error": "Session not found"}
+        
+        session = self.active_sessions[session_id]
+        
+        try:
+            # 音声入力確定
+            if session.state == RealtimeSessionState.STREAMING:
+                commit_message = {"type": "input_audio_buffer.commit"}
+                await session.websocket.send(json.dumps(commit_message))
+                
+                session.state = RealtimeSessionState.CONNECTED
+                
+                print(f"🛑 Audio streaming stopped for session: {session_id}")
+            
+            return {
+                "success": True,
+                "session_id": session_id,
+                "streaming_active": False
+            }
+            
+        except Exception as e:
+            session.state = RealtimeSessionState.ERROR
+            print(f"❌ Streaming stop error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_audio_chunk(self, session_id: str, audio_chunk: bytes) -> Dict[str, Any]:
+        """音声チャンクをRealtime APIに送信"""
+        if session_id not in self.active_sessions:
+            return {"success": False, "error": "Session not found"}
+        
+        session = self.active_sessions[session_id]
+        
+        if session.state != RealtimeSessionState.STREAMING:
+            return {"success": False, "error": "Session not in streaming mode"}
+        
+        try:
+            # チャンクサイズ制限
+            max_chunk_size = self.settings.max_audio_chunk_size
+            if len(audio_chunk) > max_chunk_size:
+                print(f"⚠️ Audio chunk too large, truncating: {len(audio_chunk)} -> {max_chunk_size}")
+                audio_chunk = audio_chunk[:max_chunk_size]
+            
+            # 音声データ送信
+            audio_message = {
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(audio_chunk).decode()
+            }
+            await session.websocket.send(json.dumps(audio_message))
+            
+            return {
+                "success": True,
+                "chunk_size": len(audio_chunk),
+                "session_id": session_id
+            }
+            
+        except Exception as e:
+            print(f"❌ Audio chunk send error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_session_status(self, session_id: str) -> Dict[str, Any]:
+        """セッション状態の詳細取得"""
+        if session_id not in self.active_sessions:
+            return {"success": False, "error": "Session not found"}
+        
+        session = self.active_sessions[session_id]
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "state": session.state.value,
+            "start_time": session.start_time,
+            "duration": time.time() - session.start_time,
+            "message_count": session.message_count,
+            "cost_usd": session.cost_usd,
+            "pending_functions": len(session.pending_functions),
+            "websocket_connected": session.websocket is not None and not session.websocket.closed,
+            "api_endpoint": self.realtime_url
+        }
+
+    async def cancel_response(self, session_id: str) -> Dict[str, Any]:
+        """進行中のレスポンスをキャンセル"""
+        if session_id not in self.active_sessions:
+            return {"success": False, "error": "Session not found"}
+        
+        session = self.active_sessions[session_id]
+        
+        try:
+            cancel_message = {"type": "response.cancel"}
+            await session.websocket.send(json.dumps(cancel_message))
+            
+            print(f"🛑 Response cancelled for session: {session_id}")
+            
+            return {
+                "success": True,
+                "session_id": session_id,
+                "action": "response_cancelled"
+            }
+            
+        except Exception as e:
+            print(f"❌ Response cancel error: {e}")
+            return {"success": False, "error": str(e)}
 
     def _get_reception_instructions(self) -> str:
         """受付AI用のインストラクション"""

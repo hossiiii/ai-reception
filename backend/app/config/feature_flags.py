@@ -44,30 +44,97 @@ class FeatureFlags(BaseSettings):
 
 
 class FeatureFlagManager:
-    """動的フィーチャーフラグ管理"""
+    """動的フィーチャーフラグ管理（強化版）"""
     
     def __init__(self):
         self.flags = FeatureFlags()
         self._runtime_overrides: Dict[str, Any] = {}
+        self._session_overrides: Dict[str, Dict[str, bool]] = {}  # セッション別オーバーライド
+        self._ab_test_assignments: Dict[str, str] = {}  # A/Bテスト割り当て
         
-    def is_enabled(self, flag_name: str, session_id: Optional[str] = None, user_id: Optional[str] = None) -> bool:
-        """フィーチャーフラグの有効性チェック"""
+    def is_enabled(self, flag_name: str, session_id: Optional[str] = None, user_id: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> bool:
+        """フィーチャーフラグの有効性チェック（強化版）"""
         
-        # ランタイムオーバーライドチェック
+        # 1. セッション別オーバーライドチェック（最優先）
+        if session_id and session_id in self._session_overrides:
+            if flag_name in self._session_overrides[session_id]:
+                return self._session_overrides[session_id][flag_name]
+        
+        # 2. ランタイムオーバーライドチェック
         if flag_name in self._runtime_overrides:
             return self._runtime_overrides[flag_name]
         
-        # 基本フラグチェック
+        # 3. 基本フラグチェック
         base_value = getattr(self.flags, flag_name, False)
         
-        # 特別なロジック適用
+        # 4. 特別なロジック適用
         if flag_name == "realtime_mode_enabled":
-            return self._check_realtime_eligibility(session_id, user_id)
+            return self._check_realtime_eligibility(session_id, user_id, context)
+        elif flag_name == "realtime_fallback_enabled":
+            return self._check_fallback_eligibility(session_id, context)
+        elif flag_name == "enable_performance_monitoring":
+            return self._check_monitoring_eligibility(context)
         
         return base_value
+
+    def enable_for_session(self, session_id: str, flag_name: str, enabled: bool = True) -> None:
+        """特定セッションでのフラグ有効化"""
+        if session_id not in self._session_overrides:
+            self._session_overrides[session_id] = {}
+        
+        self._session_overrides[session_id][flag_name] = enabled
+        print(f"🎛️ Flag '{flag_name}' {'enabled' if enabled else 'disabled'} for session {session_id}")
+
+    def disable_for_session(self, session_id: str, flag_name: str) -> None:
+        """特定セッションでのフラグ無効化"""
+        self.enable_for_session(session_id, flag_name, False)
+
+    def clear_session_overrides(self, session_id: str) -> None:
+        """セッション別オーバーライドのクリア"""
+        if session_id in self._session_overrides:
+            del self._session_overrides[session_id]
+            print(f"🧹 Session overrides cleared for {session_id}")
+
+    def assign_ab_test(self, session_id: str, test_name: str, variant: str) -> None:
+        """A/Bテスト割り当て"""
+        self._ab_test_assignments[f"{session_id}:{test_name}"] = variant
+        print(f"🧪 A/B test assignment: {session_id} -> {test_name}:{variant}")
+
+    def get_ab_test_variant(self, session_id: str, test_name: str) -> Optional[str]:
+        """A/Bテストバリアント取得"""
+        return self._ab_test_assignments.get(f"{session_id}:{test_name}")
+
+    def create_progressive_rollout(self, flag_name: str, target_percentage: int, duration_hours: int = 24) -> Dict[str, Any]:
+        """段階的ロールアウトの作成"""
+        import time
+        
+        rollout_config = {
+            "flag_name": flag_name,
+            "target_percentage": target_percentage,
+            "start_time": time.time(),
+            "duration_hours": duration_hours,
+            "current_percentage": 0
+        }
+        
+        # 実際の実装では永続化が必要
+        print(f"📈 Progressive rollout created for '{flag_name}': 0% -> {target_percentage}% over {duration_hours}h")
+        
+        return rollout_config
+
+    def update_rollout_percentage(self, flag_name: str, new_percentage: int) -> bool:
+        """ロールアウト比率の更新"""
+        try:
+            if flag_name == "realtime_mode_enabled":
+                self.flags.realtime_rollout_percentage = new_percentage
+                print(f"📊 Rollout percentage updated for '{flag_name}': {new_percentage}%")
+                return True
+            return False
+        except Exception as e:
+            print(f"❌ Failed to update rollout percentage: {e}")
+            return False
     
-    def _check_realtime_eligibility(self, session_id: Optional[str] = None, user_id: Optional[str] = None) -> bool:
-        """Realtimeモードの適用可否判定"""
+    def _check_realtime_eligibility(self, session_id: Optional[str] = None, user_id: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Realtimeモードの適用可否判定（強化版）"""
         
         # 強制モードチェック
         if self.flags.force_realtime_mode:
@@ -77,11 +144,30 @@ class FeatureFlagManager:
         if not self.flags.realtime_mode_enabled:
             return False
         
+        # A/Bテストチェック
+        if session_id:
+            ab_variant = self.get_ab_test_variant(session_id, "realtime_mode")
+            if ab_variant == "realtime":
+                return True
+            elif ab_variant == "legacy":
+                return False
+        
         # 許可リストチェック
         if session_id and self.flags.realtime_allowlist_sessions:
             allowlist = [s.strip() for s in self.flags.realtime_allowlist_sessions.split(",")]
             if session_id in allowlist:
                 return True
+        
+        # コンテキストベースの判定
+        if context:
+            # 特定条件でのRealtime有効化
+            if context.get("user_preference") == "realtime":
+                return True
+            if context.get("device_type") == "desktop" and context.get("connection_speed") == "high":
+                return True
+            # システム負荷チェック
+            if context.get("system_load", 0) > 0.8:
+                return False  # 高負荷時はRealtime無効
         
         # ロールアウト比率チェック
         if self.flags.realtime_rollout_percentage > 0:
@@ -91,6 +177,41 @@ class FeatureFlagManager:
                 return hash_value < self.flags.realtime_rollout_percentage
         
         return False
+
+    def _check_fallback_eligibility(self, session_id: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> bool:
+        """フォールバック機能の適用可否判定"""
+        
+        # 基本フラグチェック
+        if not self.flags.realtime_fallback_enabled:
+            return False
+        
+        # コンテキストベースの判定
+        if context:
+            # 特定のエラー状況では必ずフォールバック有効
+            if context.get("error_count", 0) > 2:
+                return True
+            if context.get("api_error") in ["rate_limit", "quota_exceeded"]:
+                return True
+        
+        return self.flags.realtime_fallback_enabled
+
+    def _check_monitoring_eligibility(self, context: Optional[Dict[str, Any]] = None) -> bool:
+        """パフォーマンス監視の適用可否判定"""
+        
+        # 基本フラグチェック
+        if not self.flags.enable_performance_monitoring:
+            return False
+        
+        # リソース使用量チェック
+        if context:
+            cpu_usage = context.get("cpu_usage", 0)
+            memory_usage = context.get("memory_usage", 0)
+            
+            # リソース使用量が高い場合は監視を制限
+            if cpu_usage > 0.9 or memory_usage > 0.9:
+                return False
+        
+        return True
     
     def set_runtime_override(self, flag_name: str, value: bool):
         """ランタイムでのフラグオーバーライド"""
