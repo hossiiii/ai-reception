@@ -8,6 +8,11 @@ class Settings(BaseSettings):
 
     # OpenAI Configuration
     openai_api_key: str
+    
+    # OpenAI Realtime API Configuration
+    openai_realtime_api_key: str = ""
+    realtime_mode_enabled: bool = False
+    realtime_fallback_enabled: bool = True
 
     # Google Calendar Configuration
     google_service_account_key: str
@@ -34,6 +39,36 @@ class Settings(BaseSettings):
     # Session Configuration
     session_timeout_minutes: int = 30
     max_correction_attempts: int = 3
+    
+    # Realtime API Configuration
+    realtime_max_session_time: int = 600
+    realtime_cost_limit_per_hour: float = 50.0
+    realtime_rollout_percentage: int = 0
+    realtime_debug_mode: bool = False
+    realtime_log_level: str = "INFO"
+    
+    # Realtime Audio Configuration
+    realtime_audio_format: str = "pcm16"
+    realtime_sample_rate: int = 24000
+    realtime_channels: int = 1
+    realtime_chunk_size: int = 1024
+    
+    # Realtime Performance Settings
+    realtime_connection_timeout: int = 10
+    realtime_response_timeout: int = 30
+    realtime_retry_attempts: int = 3
+    realtime_retry_delay: int = 1
+    
+    # Realtime Database Configuration
+    realtime_db_path: str = "./data/realtime.db"
+    realtime_metrics_enabled: bool = True
+    realtime_metrics_retention_days: int = 30
+    
+    # Hybrid Mode Configuration
+    hybrid_mode_enabled: bool = True
+    langgraph_fallback_enabled: bool = True
+    voice_activity_detection: bool = True
+    silence_threshold_ms: int = 2000
 
     @property
     def cors_origins(self) -> list[str]:

@@ -7,16 +7,22 @@ from fastapi import WebSocket, WebSocketDisconnect
 from ..agents.reception_graph import ReceptionGraphManager
 from ..services.audio_service import AudioService
 from ..services.voice_activity_detector import VADConfig, VoiceActivityDetector
+from ..services.realtime.hybrid_voice_manager import HybridVoiceManager
+from ..config.feature_flags import is_realtime_enabled
 
 
 class VoiceWebSocketManager:
-    """Manages WebSocket connections for voice chat"""
+    """Manages WebSocket connections for voice chat with hybrid Realtime/Legacy support"""
 
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.audio_service = AudioService()
         self.graph_manager = ReceptionGraphManager()
-        print("✅ VoiceWebSocketManager initialized")
+        
+        # Hybrid Voice Manager for Realtime API integration
+        self.hybrid_manager = HybridVoiceManager()
+        
+        print("✅ VoiceWebSocketManager initialized with hybrid support")
 
     async def connect(self, session_id: str, websocket: WebSocket):
         """Accept a new WebSocket connection"""
@@ -86,27 +92,57 @@ async def handle_voice_websocket(
         # Connect WebSocket
         await manager.connect(session_id, websocket)
 
-        # Start conversation with greeting
-        print(f"🎙️ Starting voice conversation for session: {session_id}")
-        conversation_result = await manager.graph_manager.start_conversation(session_id)
+        # Determine processing mode (Realtime vs Legacy)
+        use_realtime = is_realtime_enabled(session_id)
+        
+        if use_realtime:
+            print(f"🎙️ Starting REALTIME voice conversation for session: {session_id}")
+            # Initialize hybrid voice session
+            hybrid_result = await manager.hybrid_manager.start_session(session_id)
+            
+            if hybrid_result["success"]:
+                await manager.broadcast_to_session(session_id, "session_initialized", {
+                    "processing_mode": hybrid_result["processing_mode"],
+                    "features": hybrid_result["features"],
+                    "limits": hybrid_result["limits"]
+                })
+                
+                # Send initial greeting through hybrid manager
+                greeting_result = await manager.hybrid_manager.process_audio_message(session_id, b"")
+                if greeting_result.get("success"):
+                    await manager.broadcast_to_session(session_id, "voice_response", {
+                        "text": greeting_result.get("ai_response", "いらっしゃいませ。お名前とご用件をお聞かせください。"),
+                        "audio": base64.b64encode(greeting_result.get("audio_response", b"")).decode(),
+                        "processing_mode": greeting_result["processing_mode"]
+                    })
+            else:
+                # Fallback to legacy mode
+                use_realtime = False
+                print(f"⚠️ Realtime initialization failed, falling back to legacy mode")
+        
+        if not use_realtime:
+            print(f"🎙️ Starting LEGACY voice conversation for session: {session_id}")
+            # Start conversation with greeting
+            conversation_result = await manager.graph_manager.start_conversation(session_id)
 
-        if conversation_result["success"]:
-            # Generate audio greeting
-            greeting_text = conversation_result["message"]
-            greeting_audio = await manager.audio_service.generate_audio_output(greeting_text)
+            if conversation_result["success"]:
+                # Generate audio greeting
+                greeting_text = conversation_result["message"]
+                greeting_audio = await manager.audio_service.generate_audio_output(greeting_text)
 
-            await manager.broadcast_to_session(session_id, "voice_response", {
-                "text": greeting_text,
-                "audio": base64.b64encode(greeting_audio).decode() if greeting_audio else "",
-                "step": conversation_result["step"],
-                "visitor_info": conversation_result.get("visitor_info")
-            })
-        else:
-            await manager.broadcast_to_session(session_id, "error", {
-                "message": "Failed to start conversation",
-                "error": conversation_result.get("error")
-            })
-            return
+                await manager.broadcast_to_session(session_id, "voice_response", {
+                    "text": greeting_text,
+                    "audio": base64.b64encode(greeting_audio).decode() if greeting_audio else "",
+                    "step": conversation_result["step"],
+                    "visitor_info": conversation_result.get("visitor_info"),
+                    "processing_mode": "legacy"
+                })
+            else:
+                await manager.broadcast_to_session(session_id, "error", {
+                    "message": "Failed to start conversation",
+                    "error": conversation_result.get("error")
+                })
+                return
 
         # Main WebSocket loop
         while True:
@@ -123,39 +159,61 @@ async def handle_voice_websocket(
                         print(f"📦 Received complete audio blob: {len(audio_chunk)} bytes")
                         awaiting_audio_blob = False
 
-                        # Process the complete audio
+                        # Process the complete audio through hybrid manager
                         await manager.broadcast_to_session(session_id, "processing", {
                             "message": "音声を処理中..."
                         })
 
-                        # Convert audio to text - the blob should be a complete WebM file
-                        transcribed_text = await manager.audio_service.process_audio_input(audio_chunk)
-
-                        if transcribed_text and transcribed_text.strip():
-                            print(f"📝 Transcribed: {transcribed_text}")
-
-                            # Send transcription to client
-                            await manager.broadcast_to_session(session_id, "transcription", {
-                                "text": transcribed_text
-                            })
-
-                            # Process message through Step1 LangGraph system
-                            response = await manager.graph_manager.send_message(session_id, transcribed_text)
-
-                            if response["success"]:
-                                # Generate audio response
-                                response_text = response["message"]
-                                response_audio = await manager.audio_service.generate_audio_output(response_text)
-
-                                # Send voice response
+                        if use_realtime:
+                            # Use Hybrid Voice Manager for Realtime processing
+                            hybrid_result = await manager.hybrid_manager.process_audio_message(session_id, audio_chunk)
+                            
+                            if hybrid_result["success"]:
                                 await manager.broadcast_to_session(session_id, "voice_response", {
-                                    "text": response_text,
-                                    "audio": base64.b64encode(response_audio).decode() if response_audio else "",
-                                    "step": response["step"],
-                                    "visitor_info": response.get("visitor_info"),
-                                    "calendar_result": response.get("calendar_result"),
-                                    "completed": response.get("completed", False)
+                                    "text": hybrid_result["ai_response"],
+                                    "audio": base64.b64encode(hybrid_result["audio_response"]).decode() if hybrid_result["audio_response"] else "",
+                                    "transcription": hybrid_result.get("transcription", ""),
+                                    "processing_mode": hybrid_result["processing_mode"],
+                                    "latency_ms": hybrid_result.get("latency_ms", 0),
+                                    "cost": hybrid_result.get("cost", 0),
+                                    "completed": hybrid_result.get("completed", False)
                                 })
+                            else:
+                                # Handle hybrid processing error
+                                await manager.broadcast_to_session(session_id, "error", {
+                                    "message": "音声処理中にエラーが発生しました",
+                                    "error": hybrid_result.get("error", "Unknown error")
+                                })
+                        else:
+                            # Legacy processing
+                            transcribed_text = await manager.audio_service.process_audio_input(audio_chunk)
+
+                            if transcribed_text and transcribed_text.strip():
+                                print(f"📝 Transcribed: {transcribed_text}")
+
+                                # Send transcription to client
+                                await manager.broadcast_to_session(session_id, "transcription", {
+                                    "text": transcribed_text
+                                })
+
+                                # Process message through Step1 LangGraph system
+                                response = await manager.graph_manager.send_message(session_id, transcribed_text)
+
+                                if response["success"]:
+                                    # Generate audio response
+                                    response_text = response["message"]
+                                    response_audio = await manager.audio_service.generate_audio_output(response_text)
+
+                                    # Send voice response
+                                    await manager.broadcast_to_session(session_id, "voice_response", {
+                                        "text": response_text,
+                                        "audio": base64.b64encode(response_audio).decode() if response_audio else "",
+                                        "step": response["step"],
+                                        "visitor_info": response.get("visitor_info"),
+                                        "calendar_result": response.get("calendar_result"),
+                                        "completed": response.get("completed", False),
+                                        "processing_mode": "legacy"
+                                    })
 
                         # Send ready status
                         await manager.broadcast_to_session(session_id, "ready", {
