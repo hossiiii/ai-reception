@@ -53,3 +53,14 @@ mypy>=1.7.0
 
 # Production server (optional)
 gunicorn>=21.2.0
+
+# Phase 3: Enterprise monitoring and management
+psutil>=5.9.0
+PyJWT>=2.8.0
+bcrypt>=4.0.0
+
+# Phase 3: Enhanced security and authentication  
+cryptography>=41.0.0
+
+# Phase 3: Performance optimization
+prometheus_client>=0.17.0
