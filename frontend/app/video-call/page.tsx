@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import VideoCallInterface from '@/components/VideoCallInterface';
 
@@ -21,10 +21,9 @@ function VideoCallContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<'form' | 'creating' | 'connected' | 'ending'>('form');
-  const [countdown, setCountdown] = useState(5);
+  // Removed countdown state for auto-transition
   
-  // Refs for cleanup
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Removed countdown interval ref
   
   // Get URL parameters
   const roomName = searchParams.get('room');
@@ -37,14 +36,7 @@ function VideoCallContent() {
     }
   }, [roomName, isStaffMode]);
   
-  // Cleanup countdown on unmount
-  useEffect(() => {
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, []);
+  // Removed countdown cleanup useEffect
   
   // Handle joining video room (for staff)
   const handleJoinRoom = async () => {
@@ -102,21 +94,7 @@ function VideoCallContent() {
   // Handle call end
   const handleCallEnd = () => {
     setStage('ending');
-    setCountdown(5);
-    
-    // Start countdown
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-          }
-          router.push('/');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Removed automatic countdown and transition
   };
   
   // Handle error from video component
@@ -260,19 +238,11 @@ function VideoCallContent() {
           ご利用ありがとうございました
         </p>
         
-        <div className="text-3xl font-bold text-blue-600 mb-4">
-          {countdown}
-        </div>
-        
-        <p className="text-sm text-gray-500">
-          {countdown}秒後にホーム画面に戻ります
-        </p>
-        
         <button
           onClick={() => router.push('/')}
           className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          今すぐ戻る
+          ホーム画面に戻る
         </button>
       </div>
     </div>
