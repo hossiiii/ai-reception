@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { connect } from 'twilio-video';
 import { Card, CardContent } from '@/components/ui';
 import { VideoMonitor } from './VideoMonitor';
@@ -32,8 +32,24 @@ export const IntercomDevice: React.FC<IntercomDeviceProps> = ({
     setError,
   } = useIntercomStore();
 
+  // Audio ref for chime sound
+  const chimeAudioRef = useRef<HTMLAudioElement>(null);
+
+  // Play chime sound
+  const playChime = useCallback(() => {
+    if (chimeAudioRef.current) {
+      chimeAudioRef.current.currentTime = 0; // Reset to beginning
+      chimeAudioRef.current.play().catch((error) => {
+        console.warn('Failed to play chime sound:', error);
+      });
+    }
+  }, []);
+
   // Handle Twilio connection
   const handleConnect = useCallback(async () => {
+    // Play chime sound when button is pressed
+    playChime();
+    
     startCall();
     
     // Debug: Check if video elements are available
@@ -254,7 +270,7 @@ export const IntercomDevice: React.FC<IntercomDeviceProps> = ({
     } finally {
       setConnecting(false);
     }
-  }, [roomName, localVideo, remoteVideo, startCall, setRoom, setConnecting, setError]);
+  }, [roomName, localVideo, remoteVideo, startCall, setRoom, setConnecting, setError, playChime]);
 
   // Handle disconnect
   const handleDisconnect = useCallback(() => {
@@ -272,6 +288,14 @@ export const IntercomDevice: React.FC<IntercomDeviceProps> = ({
 
   return (
     <div className={`h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4 ${className}`}>
+      {/* Hidden audio element for chime sound */}
+      <audio
+        ref={chimeAudioRef}
+        preload="auto"
+        className="hidden"
+      >
+        <source src="/chime.mp3" type="audio/mpeg" />
+      </audio>
       <Card className="w-full h-full rounded-2xl shadow-2xl flex flex-col items-center justify-between bg-gray-100 border border-gray-300 relative overflow-hidden
         /* Mobile design (default) */
         max-w-md max-h-[90vh] p-4 space-y-2
