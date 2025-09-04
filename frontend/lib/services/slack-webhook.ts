@@ -13,7 +13,7 @@ interface SlackMessage {
   blocks?: any[];
 }
 
-const SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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';
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 
 /**
  * Send a notification to Slack when a visitor arrives at the intercom
