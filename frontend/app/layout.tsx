@@ -3,12 +3,12 @@ import Link from 'next/link';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AI Reception System',
-  description: 'Tablet-based AI reception system for visitor management',
-  keywords: ['AI', 'reception', 'visitor', 'management', 'tablet'],
-  authors: [{ name: 'AI Reception Team' }],
-  creator: 'AI Reception System',
-  publisher: 'AI Reception System',
+  title: 'Intercom System',
+  description: 'Simple tablet-based intercom for visitor communication',
+  keywords: ['intercom', 'visitor', 'communication', 'tablet', 'video call'],
+  authors: [{ name: 'Intercom Team' }],
+  creator: 'Intercom System',
+  publisher: 'Intercom System',
   formatDetection: {
     email: false,
     address: false,
@@ -52,7 +52,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         {/* PWA settings for tablet */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Reception" />
+        <meta name="apple-mobile-web-app-title" content="Intercom" />
         
         {/* Disable text selection and context menus for kiosk mode */}
         <style dangerouslySetInnerHTML={{

@@ -6,6 +6,81 @@ import { TextEncoder, TextDecoder } from 'util'
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
+// Mock Web APIs for Next.js App Router API Routes
+global.Request = class MockRequest {
+  constructor(url, options = {}) {
+    this._url = url
+    this._method = options.method || 'GET'
+    this._headers = new Map(Object.entries(options.headers || {}))
+    this._body = options.body
+  }
+
+  get url() { return this._url }
+  get method() { return this._method }
+  get headers() { return this._headers }
+
+  async json() {
+    try {
+      return JSON.parse(this._body)
+    } catch (error) {
+      throw new SyntaxError('Unexpected token < in JSON at position 0')
+    }
+  }
+}
+
+global.Response = class MockResponse {
+  constructor(body, options = {}) {
+    this._body = body
+    this._status = options.status || 200
+    this._statusText = options.statusText || 'OK'
+    this._headers = new Map(Object.entries(options.headers || {}))
+  }
+
+  get status() { return this._status }
+  get statusText() { return this._statusText }
+  get headers() { return this._headers }
+
+  async json() {
+    return JSON.parse(this._body)
+  }
+
+  static json(object, init = {}) {
+    const body = JSON.stringify(object)
+    const headers = { 'content-type': 'application/json', ...(init.headers || {}) }
+    return new MockResponse(body, { ...init, headers })
+  }
+}
+
+global.Headers = Map
+global.URL = class MockURL {
+  constructor(url) {
+    const [baseUrl, search] = url.split('?')
+    this.href = url
+    this.origin = baseUrl.split('/').slice(0, 3).join('/')
+    this.pathname = baseUrl.replace(this.origin, '')
+    this.search = search ? `?${search}` : ''
+    this.searchParams = new URLSearchParams(search || '')
+  }
+}
+
+// Mock Next.js specific classes
+jest.mock('next/server', () => ({
+  NextRequest: class MockNextRequest extends global.Request {
+    constructor(url, options = {}) {
+      super(url, options)
+    }
+  },
+  NextResponse: class MockNextResponse extends global.Response {
+    constructor(body, options = {}) {
+      super(body, options)
+    }
+    
+    static json(object, init = {}) {
+      return global.Response.json(object, init)
+    }
+  }
+}))
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {
