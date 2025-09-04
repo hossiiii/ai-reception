@@ -271,35 +271,73 @@ export const IntercomDevice: React.FC<IntercomDeviceProps> = ({
   }, [room]);
 
   return (
-    <div className={`h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black ${className}`}>
-      <Card className="w-80 h-[32rem] rounded-2xl shadow-2xl flex flex-col items-center justify-between p-6 bg-gray-100 border border-gray-300 relative overflow-hidden">
-        <CardContent className="flex flex-col items-center space-y-6 mt-4 w-full">
+    <div className={`h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4 ${className}`}>
+      <Card className="w-full h-full rounded-2xl shadow-2xl flex flex-col items-center justify-between bg-gray-100 border border-gray-300 relative overflow-hidden
+        /* Mobile design (default) */
+        max-w-md max-h-[90vh] p-4 space-y-2
+        /* Tablet design (md: 768px and up) - Full screen optimized */
+        md:max-w-none md:max-h-none md:w-full md:h-full md:p-8 md:space-y-6
+        /* PC design (lg: 1024px and up) - Contained design */
+        lg:max-w-2xl lg:max-h-[85vh] lg:p-6 lg:space-y-4">
+        <CardContent className="flex flex-col items-center justify-between h-full w-full
+          /* Mobile spacing */
+          space-y-2
+          /* Tablet spacing - more generous */
+          md:space-y-8
+          /* PC spacing - balanced */
+          lg:space-y-3">
           {/* Camera部分 */}
-          <div className="w-14 h-14 bg-black rounded-full border-4 border-gray-600 shadow-md" />
+          <div className="bg-black rounded-full border-4 border-gray-600 shadow-md flex-shrink-0
+            /* Mobile: small camera */
+            w-12 h-12
+            /* Tablet: medium camera */
+            md:w-16 md:h-16
+            /* PC: small camera to save space */
+            lg:w-14 lg:h-14" />
 
           {/* Video Monitor */}
-          <VideoMonitor
-            callStatus={callStatus}
-            onLocalVideoRef={setLocalVideo}
-            onRemoteVideoRef={setRemoteVideo}
-          />
+          <div className="flex-1 w-full flex items-center justify-center min-h-0
+            /* Mobile: constrained height */
+            max-h-[40vh]
+            /* Tablet: more generous height for full-screen experience */
+            md:max-h-[60vh]
+            /* PC: balanced height for contained design */
+            lg:max-h-[35vh]">
+            <VideoMonitor
+              callStatus={callStatus}
+              onLocalVideoRef={setLocalVideo}
+              onRemoteVideoRef={setRemoteVideo}
+            />
+          </div>
 
           {/* Speaker holes */}
-          <div className="grid grid-cols-8 gap-1 w-44 justify-center mt-2">
+          <div className="grid grid-cols-8 justify-center flex-shrink-0
+            /* Mobile: small speaker */
+            gap-1 w-36
+            /* Tablet: large speaker */
+            md:gap-2 md:w-60
+            /* PC: compact speaker to save space */
+            lg:gap-1 lg:w-44">
             {Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} className="w-1.5 h-1.5 bg-gray-500 rounded-full opacity-70" />
+              <div key={i} className="bg-gray-500 rounded-full opacity-70
+                /* Mobile: tiny holes */
+                w-1 h-1
+                /* Tablet: larger holes */
+                md:w-2 md:h-2
+                /* PC: small holes to save space */
+                lg:w-1.5 lg:h-1.5" />
             ))}
           </div>
 
           {/* Error display */}
           {error && (
-            <div className="text-red-600 text-sm text-center px-2 py-1 bg-red-50 rounded border border-red-200">
+            <div className="text-red-600 text-sm md:text-base text-center px-3 py-2 bg-red-50 rounded border border-red-200 w-full max-w-sm">
               {error}
             </div>
           )}
 
           {/* Call Button */}
-          <div className="flex flex-col items-center space-y-2 mt-6">
+          <div className="flex flex-col items-center space-y-2 flex-shrink-0">
             <CallButton
               isConnected={callStatus === 'connected'}
               isConnecting={isConnecting}

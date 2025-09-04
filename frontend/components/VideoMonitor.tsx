@@ -60,7 +60,13 @@ export const VideoMonitor: React.FC<VideoMonitorProps> = ({
   };
 
   return (
-    <div className="w-56 h-40 bg-gray-900 rounded-lg flex items-center justify-center text-white shadow-inner border border-gray-700 relative overflow-hidden">
+    <div className="w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center text-white shadow-inner border border-gray-700 relative overflow-hidden
+      /* Mobile: small size */
+      max-w-xs
+      /* Tablet: larger size for full-screen experience */
+      md:max-w-4xl
+      /* PC: balanced medium size */
+      lg:max-w-xl">
       {/* Always render video elements so refs are available, but show/hide based on call status */}
       
       {/* Remote video (main display) - visible only when connected */}
@@ -72,7 +78,7 @@ export const VideoMonitor: React.FC<VideoMonitorProps> = ({
       />
       
       {/* Local video (picture-in-picture overlay) - visible only when connected */}
-      <div className={`absolute bottom-2 right-2 w-16 h-12 bg-gray-800 rounded border-2 border-white shadow-lg overflow-hidden ${callStatus === 'connected' ? 'block' : 'hidden'}`}>
+      <div className={`absolute bottom-2 right-2 md:bottom-4 md:right-4 w-16 h-12 md:w-24 md:h-16 lg:w-32 lg:h-20 bg-gray-800 rounded border-2 border-white shadow-lg overflow-hidden ${callStatus === 'connected' ? 'block' : 'hidden'}`}>
         <video
           ref={localRef}
           autoPlay
